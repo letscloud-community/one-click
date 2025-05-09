@@ -1,0 +1,31 @@
+#!/bin/sh
+
+. /root/.rabbitmq_password
+
+myip=$(hostname -I | awk '{print$1}')
+cat <<EOF
+================================================================================
+
+🚀 Welcome to your new RabbitMQ server on LetsCloud!
+
+This instance is preconfigured and ready to manage your message queues.
+
+🌐 Access RabbitMQ Management UI:
+  - URL: http://$myip:15672
+  - Username: admin
+  - Password: $admin_rabbitmq_pass
+
+📂 Key Info:
+  - RabbitMQ is running on port 5672 for messaging.
+  - Management UI is available on port 15672.
+  - The admin credentials are securely stored in /root/.rabbitmq_password.
+
+📘 Resources & Support:
+  - RabbitMQ guide: https://www.letscloud.io/community/rabbitmq
+  - Need help? Visit: https://www.letscloud.io/help
+
+Thank you for building on LetsCloud. We’re here to help you grow 🚀
+
+================================================================================
+To remove this message: rm -rf $(readlink -f ${0})
+EOF
