@@ -1,0 +1,27 @@
+#!/bin/sh
+
+mysql_version=$(mysql --version)
+cat <<EOF
+================================================================================
+
+🚀 Welcome to your new MySQL server on LetsCloud!
+
+This instance is preconfigured and ready to host your web applications.
+
+🌐 Access your server:
+  - MySQL is running and accessible locally.
+
+📂 Key Info:
+  - MySQL root password: stored securely at /root/.my.cnf
+  - MySQL version: $mysql_version
+  - Use 'mytop' to monitor MySQL performance
+
+📘 Resources & Support:
+  - MySQL guide: https://www.letscloud.io/community/mysql
+  - Need help? Visit: https://www.letscloud.io/help
+
+Thank you for building on LetsCloud. We’re here to help you grow 🚀
+
+================================================================================
+To remove this message: rm -rf $(readlink -f ${0})
+EOF
