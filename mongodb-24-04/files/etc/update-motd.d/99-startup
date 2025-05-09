@@ -1,0 +1,31 @@
+#!/bin/sh
+
+. /root/.mongodb_password
+
+myip=$(hostname -I | awk '{print$1}')
+cat <<EOF
+================================================================================
+
+🚀 Welcome to your new MongoDB server on LetsCloud!
+
+This instance is preconfigured and ready to manage your databases.
+
+🌐 Access your server:
+  - MongoDB is running on port 27017.
+  - Connection string for your MongoDB:
+      mongodb://admin:${admin_mongodb_password}@${myip}:27017
+
+📂 Key Info:
+  - MongoDB admin username: admin
+  - MongoDB admin password: ${admin_mongodb_password}
+  - The credentials are securely stored in /root/.mongodb_password
+
+📘 Resources & Support:
+  - MongoDB guide: https://www.letscloud.io/community/mongodb
+  - Need help? Visit: https://www.letscloud.io/help
+
+Thank you for building on LetsCloud. We’re here to help you grow 🚀
+
+================================================================================
+To remove this message: rm -rf $(readlink -f ${0})
+EOF
