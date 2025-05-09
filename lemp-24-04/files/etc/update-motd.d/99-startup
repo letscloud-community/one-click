@@ -1,0 +1,27 @@
+#!/bin/sh
+
+myip=$(hostname -I | awk '{print$1}')
+cat <<EOF
+================================================================================
+
+ 🚀 Welcome to your new LEMP server on LetsCloud!
+
+This instance is preconfigured and ready to host your web applications.
+
+🌐 Access your site:
+  - Visit http://$myip in your browser
+
+📂 Key Info:
+  - Web root: /var/www/html
+  - MySQL root password: stored securely at /root/.my.cnf
+  - Certbot is installed for HTTPS. Run 'certbot' to get started.
+
+📘 Resources & Support:
+  - LEMP guide: https://www.letscloud.io/community/lemp
+  - Need help? Visit: https://www.letscloud.io/help
+
+Thank you for building on LetsCloud. We’re here to help you grow 🚀
+
+================================================================================
+To remove this message: rm -rf $(readlink -f ${0})
+EOF

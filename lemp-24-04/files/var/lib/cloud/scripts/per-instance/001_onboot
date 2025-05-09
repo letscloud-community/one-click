@@ -1,0 +1,49 @@
+#!/bin/bash
+
+#Generate Mysql root password.
+root_mysql_pass=$(openssl rand -hex 24)
+debian_sys_maint_mysql_pass=$(openssl rand -hex 24)
+
+# Save the passwords
+cat > /root/.my.cnf <<EOM
+[client]
+user=root
+password="${root_mysql_pass}"
+EOM
+chmod 600 /root/.my.cnf
+
+# Configure MySQL root password
+mysqladmin -u root password ${root_mysql_pass}
+
+# Update debian-sys-maint user password
+mysql --defaults-file=/root/.my.cnf <<SQL
+ALTER USER 'debian-sys-maint'@'localhost' IDENTIFIED BY '${debian_sys_maint_mysql_pass}';
+FLUSH PRIVILEGES;
+SQL
+
+cat > /etc/mysql/debian.cnf <<EOM
+# Automatically generated for Debian scripts. DO NOT TOUCH!
+[client]
+host     = localhost
+user     = debian-sys-maint
+password = ${debian_sys_maint_mysql_pass}
+socket   = /var/run/mysqld/mysqld.sock
+[mysql_upgrade]
+host     = localhost
+user     = debian-sys-maint
+password = ${debian_sys_maint_mysql_pass}
+socket   = /var/run/mysqld/mysqld.sock
+EOM
+
+myip=$(hostname -I | awk '{print$1}')
+sed -e "s|server_name localhost|server_name ${myip}|g" \
+    -i /etc/nginx/sites-available/letscloud
+
+systemctl restart nginx
+
+# Remove the ssh force logout command
+sed -e '/Match User root/d' \
+    -e '/.*ForceCommand.*instance.*/d' \
+    -i /etc/ssh/sshd_config
+
+systemctl restart ssh
