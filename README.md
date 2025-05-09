@@ -27,7 +27,7 @@ Update variables such as:
 `api_key`: Your cloud provider's API key.
 
 Example snippet from a Packer template:
-```json
+```hcl
 variable "api_key" {
   type = string
 }
