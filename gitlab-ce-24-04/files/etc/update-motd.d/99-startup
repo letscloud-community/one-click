@@ -1,0 +1,48 @@
+#!/bin/sh
+
+myip=$(hostname -I | awk '{print$1}')
+cat <<EOF
+================================================================================
+
+       *.                  *.
+      ***                 ***
+     *****               *****
+    .******             *******
+    ********            ********
+   ,,,,,,,,,***********,,,,,,,,,
+  ,,,,,,,,,,,*********,,,,,,,,,,,
+  .,,,,,,,,,,,*******,,,,,,,,,,,,
+      ,,,,,,,,,*****,,,,,,,,,.
+         ,,,,,,,****,,,,,,
+            .,,,***,,,,
+                ,*,.
+
+     _______ __  __          __
+    / ____(_) /_/ /   ____ _/ /_
+   / / __/ / __/ /   / __  / __ \\
+  / /_/ / / /_/ /___/ /_/ / /_/ /
+  \____/_/\__/_____/\__,_/_.___/
+
+🚀 Welcome to your new GitLab server on LetsCloud!
+
+This instance is preconfigured and ready with:
+
+📊 GitLab is running and accessible at:
+  - URL: http://$myip
+  - Default credentials:
+    - Username: root
+    - Password: Located in /etc/gitlab/initial_root_password
+  - Documentation: https://docs.gitlab.com/
+
+📘 Resources & Support:
+  - GitLab guide: https://www.letscloud.io/community/gitlab
+  - Need help? Visit: https://www.letscloud.io/help
+
+💡 Important:
+  - For security, update the default credentials after the first login.
+
+Thank you for building on LetsCloud. We’re here to help you grow 🚀
+
+================================================================================
+To remove this message: rm -rf $(readlink -f ${0})
+EOF
