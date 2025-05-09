@@ -1,0 +1,24 @@
+#!/bin/sh
+
+myip=$(hostname -I | awk '{print$1}')
+cat <<EOF
+================================================================================
+
+ 🚀 Welcome to your new Grafana server on LetsCloud!
+
+This instance is preconfigured and ready with:
+
+📊 Grafana is running and accessible at:
+  - URL: http://$myip:3000
+  - Default credentials: admin / admin
+  - Documentation: https://grafana.com/docs/
+
+📘 Resources & Support:
+  - Grafana guide: https://www.letscloud.io/community/grafana
+  - Need help? Visit: https://www.letscloud.io/help
+
+Thank you for building on LetsCloud. We’re here to help you grow 🚀
+
+================================================================================
+To remove this message: rm -rf $(readlink -f ${0})
+EOF
