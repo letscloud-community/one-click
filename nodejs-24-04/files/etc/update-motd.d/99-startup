@@ -1,0 +1,39 @@
+#!/bin/sh
+
+myip=$(hostname -I | awk '{print$1}')
+NODE_USER=$(grep "NODE_USER=" /root/.nodejs_passwords | cut -d '=' -f2)
+NODE_USER_PASSWORD=$(grep "NODE_USER_PASSWORD=" /root/.nodejs_passwords | cut -d '=' -f2)
+
+cat <<EOF
+================================================================================
+
+🚀 Welcome to your new Node.js server on LetsCloud!
+
+This instance is preconfigured and ready to host your Node.js applications.
+
+🌐 Access your site:
+  - Visit http://$myip in your browser
+
+📂 Key Info:
+  - Application root: /var/www/html
+  - PM2 is running under the '$NODE_USER' user. To manage processes, switch to the '$NODE_USER' user:
+      sudo su - $NODE_USER
+  - Alternatively, execute commands as the '$NODE_USER' user:
+      sudo -u $NODE_USER pm2 list
+  - Node.js version: $(node -v)
+  - NPM version: $(npm -v)
+
+🔑 Credentials:
+  - Username: $NODE_USER
+  - Password: $NODE_USER_PASSWORD
+  - You can access this server directly via SSH/SFTP using the above credentials.
+
+📘 Resources & Support:
+  - Node.js guide: https://www.letscloud.io/community/nodejs
+  - Need help? Visit: https://www.letscloud.io/help
+
+Thank you for building on LetsCloud. We’re here to help you grow 🚀
+
+================================================================================
+To remove this message: rm -rf $(readlink -f ${0})
+EOF

@@ -1,0 +1,26 @@
+#!/bin/bash -x
+exec > >(tee /var/log/one_click_setup.log) 2>&1
+
+# Generate some passwords
+cat > /root/.nodejs_passwords <<EOM
+NODE_USER=nodejs
+NODE_USER_PASSWORD=$(openssl rand -hex 16)
+EOM
+
+source /root/.nodejs_passwords
+
+# Set the nodejs user password
+echo "${NODE_USER}:${NODE_USER_PASSWORD}" | chpasswd -
+
+myip=$(hostname -I | awk '{print$1}')
+sed -e "s|server_name localhost|server_name ${myip}|g" \
+    -i /etc/nginx/sites-available/default
+
+systemctl restart nginx
+
+# Remove the ssh force logout command
+sed -e '/Match User root/d' \
+    -e '/.*ForceCommand.*instance.*/d' \
+    -i /etc/ssh/sshd_config
+
+systemctl restart ssh
