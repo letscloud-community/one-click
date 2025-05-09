@@ -1,0 +1,26 @@
+#!/bin/sh
+
+docker_version=$(docker version --format '{{.Server.Version}}')
+docker_compose_version=$(docker compose version --short)
+cat <<EOF
+================================================================================
+
+ 🚀 Welcome to your new Docker server on LetsCloud!
+
+This instance is preconfigured and ready with:
+
+🌐 Docker (Version: $docker_version)
+  - https://docs.docker.com/install/linux/docker-ce/ubuntu/
+
+📂 Docker Compose (Version: $docker_compose_version)
+  - https://docs.docker.com/compose/install/#install-compose
+
+📘 Resources & Support:
+  - Docker guide: https://www.letscloud.io/community/docker
+  - Need help? Visit: https://www.letscloud.io/help
+
+Thank you for building on LetsCloud. We’re here to help you grow 🚀
+
+================================================================================
+To remove this message: rm -rf $(readlink -f ${0})
+EOF
