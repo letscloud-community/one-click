@@ -1,0 +1,25 @@
+#!/bin/bash
+
+# Configure UFW
+ufw default deny incoming
+ufw default allow outgoing
+ufw allow 22/tcp
+ufw allow 80/tcp
+ufw allow 443/tcp
+ufw allow 7080/tcp
+yes | ufw enable
+
+# Make MOTD executable
+chmod +x /etc/update-motd.d/99-one-click
+
+# Restart OpenLiteSpeed
+systemctl restart openlitespeed
+
+# Remove the ssh force logout command
+sed -e '/Match User root/d' \
+    -e '/.*ForceCommand.*instance.*/d' \
+    -i /etc/ssh/sshd_config
+
+systemctl restart ssh
+
+exit 0

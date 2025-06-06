@@ -1,0 +1,57 @@
+#!/bin/sh
+
+myip=$(hostname -I | awk '{print$1}')
+
+# Load database credentials if available
+if [ -f /root/.db_credentials ]; then
+    . /root/.db_credentials
+fi
+
+cat <<EOF
+
+================================================================================
+
+            Welcome to LetsCloud OpenLiteSpeed One-Click!
+
+================================================================================
+
+🌐 WordPress Site
+   * URL: http://$myip/
+   * Admin Panel: http://$myip/wp-admin/
+   * Web Root: /usr/local/lsws/wordpress/
+   * Config File: /usr/local/lsws/wordpress/wp-config.php
+
+🔧 OpenLiteSpeed Admin
+   * URL: http://$myip:7080/
+   * Username: admin
+   * Password: ${ADMIN_PASS:-Not available}
+   * Config File: /usr/local/lsws/admin/fcgi-bin/admin_php.ini
+
+💾 Database Access
+   * Name: ${DB_NAME:-Not available}
+   * User: ${DB_USER:-Not available}
+   * Credentials File: /root/.db_credentials
+
+🔒 Security Notes
+   1. Change OpenLiteSpeed password at: http://$myip:7080/
+      Navigate to: Administration > Server > Security
+   
+   2. Set up WordPress admin account at: http://$myip/wp-admin/
+   
+   3. Update database passwords with:
+      Root user:     mysql -uroot -p[current_pass] -e "ALTER USER 'root'@'localhost' IDENTIFIED BY 'new_password';"
+      WordPress user: mysql -uroot -p[current_pass] -e "ALTER USER '${DB_USER:-wpuser}'@'localhost' IDENTIFIED BY 'new_password';"
+
+🛡️ Firewall Status
+   * UFW is enabled and configured
+   * Open ports: 22 (SSH), 80 (HTTP), 443 (HTTPS), 7080 (Admin)
+
+📚 Documentation
+   * OpenLiteSpeed: https://docs.openlitespeed.org/
+   * WordPress: https://wordpress.org/documentation/
+   * LetsCloud: https://www.letscloud.io/help
+
+================================================================================
+
+To remove this message: rm -rf $(readlink -f ${0})
+EOF

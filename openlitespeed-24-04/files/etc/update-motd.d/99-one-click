@@ -1,0 +1,27 @@
+#!/bin/sh
+
+myip=$(hostname -I | awk '{print$1}')
+cat <<EOF
+
+================================================================================
+
+Welcome to LetsCloud OpenLiteSpeed One-Click!
+
+To keep this server secure, the UFW firewall is enabled.
+All ports are BLOCKED except 22 (SSH), 80 (HTTP), 443 (HTTPS), and 7080 (Admin).
+
+In a web browser, you can view:
+ * OpenLiteSpeed: http://$myip/
+ * Admin Interface: http://$myip:7080/
+
+On the server:
+ * The default admin username is: admin
+ * The default admin password is: letscloud_change_pass
+ * The web root is: /usr/local/lsws/Example/html/
+
+For help and more information, visit https://www.letscloud.io/help
+
+================================================================================
+
+To remove this message: rm -rf $(readlink -f ${0})
+EOF
