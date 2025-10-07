@@ -1,0 +1,41 @@
+#!/bin/bash
+
+# n8n Cloud-init script
+# This script runs on first boot to ensure services are started
+
+# Wait for cloud-init to complete
+cloud-init status --wait
+
+# Wait a bit more for all services to be ready
+sleep 10
+
+# Ensure PostgreSQL is running first
+systemctl enable postgresql
+systemctl start postgresql
+sleep 5
+
+# Ensure nginx is running
+systemctl enable nginx
+systemctl start nginx
+sleep 5
+
+# Start and enable n8n service (depends on PostgreSQL)
+systemctl enable n8n
+systemctl start n8n
+
+# Wait for n8n to fully start
+sleep 10
+
+# Check service status and restart if needed
+if ! systemctl is-active --quiet n8n; then
+    echo "n8n service not active, restarting..."
+    systemctl restart n8n
+fi
+
+if ! systemctl is-active --quiet nginx; then
+    echo "nginx service not active, restarting..."
+    systemctl restart nginx
+fi
+
+# Remove this script after first run
+rm -f /var/lib/cloud/scripts/per-instance/001_onboot

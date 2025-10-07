@@ -1,0 +1,37 @@
+#!/bin/sh
+
+myip=$(hostname -I | awk '{print$1}')
+cat <<EOF
+================================================================================
+
+ 🚀 Welcome to your new Easypanel server on LetsCloud!
+
+This instance is preconfigured with Easypanel - a modern control panel for Docker.
+
+🌐 Access your Easypanel:
+  - Visit http://$myip in your browser
+  - Login and password are configured during first setup
+
+📂 Key Info:
+  - Easypanel config: /etc/easypanel
+  - Docker Swarm is enabled and configured
+  - Automatic updates are enabled
+  - Ports 80 and 443 are configured for web access
+
+🔧 Features:
+  - Docker container management
+  - One-click app deployments
+  - SSL certificate management
+  - Database management
+  - File browser
+  - Terminal access
+
+📘 Resources & Support:
+  - Easypanel docs: https://easypanel.io/docs
+  - Need help? Visit: https://www.letscloud.io/help
+
+Thank you for building on LetsCloud. We're here to help you grow 🚀
+
+================================================================================
+To remove this message: rm -rf $(readlink -f ${0})
+EOF

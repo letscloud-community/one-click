@@ -1,0 +1,39 @@
+#!/bin/bash
+
+# n8n Startup Message
+SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+cat << EOF
+===============================================
+        n8n Automation Platform
+===============================================
+
+n8n is now installed and configured!
+
+Access n8n at: http://$SERVER_IP/
+First-time setup:
+  Complete the initial setup wizard to create your admin account
+
+Database: PostgreSQL (configured)
+Reverse Proxy: nginx
+
+Service status:
+  - n8n: systemctl status n8n
+  - nginx: systemctl status nginx
+  - postgresql: systemctl status postgresql
+
+Troubleshooting:
+  - Check logs: journalctl -u n8n -f
+  - Restart services: systemctl restart n8n nginx
+  - Test nginx: nginx -t
+
+HTTPS (recommended):
+  1) Install Certbot and generate certificate for your domain
+     sudo apt-get install -y python3-certbot-nginx
+     sudo certbot --nginx -d your-domain.com
+  2) Enable secure cookie after HTTPS
+     sudo sed -i 's/^N8N_SECURE_COOKIE=.*/N8N_SECURE_COOKIE=true/' /home/n8n/.n8n/.env
+     sudo systemctl restart n8n nginx
+
+Documentation: https://docs.n8n.io
+===============================================
+EOF

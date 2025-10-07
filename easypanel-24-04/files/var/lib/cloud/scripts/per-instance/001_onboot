@@ -1,0 +1,32 @@
+#!/bin/bash
+
+# Ensure Docker is running on boot
+echo "Ensuring Docker is running on boot..."
+
+# Start Docker if not running
+if ! systemctl is-active --quiet docker; then
+    echo "Starting Docker service..."
+    systemctl start docker
+fi
+
+# Ensure Docker starts on boot
+systemctl enable docker
+
+# Wait for Docker to be ready
+while ! docker info > /dev/null 2>&1; do
+    echo "Waiting for Docker to be ready..."
+    sleep 5
+done
+
+# Start Easypanel services if they exist
+if docker service ls | grep -q "easypanel"; then
+    echo "Starting Easypanel services..."
+    docker service update --force easypanel
+fi
+
+if docker service ls | grep -q "traefik"; then
+    echo "Starting Traefik service..."
+    docker service update --force traefik
+fi
+
+echo "First boot process completed successfully!"
