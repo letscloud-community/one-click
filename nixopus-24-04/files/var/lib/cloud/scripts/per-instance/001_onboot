@@ -1,0 +1,50 @@
+#!/bin/bash
+
+set -euo pipefail
+exec > >(tee /var/log/nixopus-onboot.log) 2>&1
+
+echo "[onboot] Waiting for cloud-init to finish..."
+cloud-init status --wait
+
+if [ -d /etc/update-motd.d ] && [ -f /etc/update-motd.d/99-startup ]; then
+  echo "[onboot] Ensuring MOTD script is executable..."
+  chmod +x /etc/update-motd.d/99-startup
+fi
+
+echo "[onboot] Ensuring Docker service is running..."
+systemctl enable --now docker || true
+sleep 3
+
+echo "[onboot] Stopping all Docker containers before redeploy..."
+if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+  docker stop $(docker ps -q) 2>/dev/null || echo "[onboot] No running containers to stop"
+  echo "[onboot] Docker containers stopped"
+else
+  echo "[onboot] WARNING: Docker not available, skipping container stop..."
+fi
+
+echo "[onboot] Running nixopus-redeploy before unlocking SSH..."
+if command -v nixopus-redeploy >/dev/null 2>&1; then
+  nixopus-redeploy || {
+    echo "[onboot] WARNING: nixopus-redeploy failed, but continuing with SSH unlock..."
+  }
+else
+  echo "[onboot] WARNING: nixopus-redeploy not found, skipping..."
+fi
+
+echo "[onboot] Removing temporary SSH ForceCommand guard..."
+sed -e '/Match User root/d' \
+    -e '/.*ForceCommand.*instance.*/d' \
+    -i /etc/ssh/sshd_config
+
+systemctl restart ssh || systemctl restart sshd
+
+echo "[onboot] Ensuring Docker and Nixopus services are up..."
+systemctl enable --now docker || true
+if systemctl list-unit-files | grep -q '^nixopus'; then
+  systemctl enable --now nixopus || true
+fi
+
+echo "[onboot] Cleanup complete. Removing this script so it only runs once."
+rm -f /var/lib/cloud/scripts/per-instance/001_onboot
+

@@ -1,0 +1,42 @@
+#!/bin/bash
+
+SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+NIXOPUS_VERSION=$(nixopus --version 2>/dev/null || echo "unknown")
+
+cat <<EOF
+================================================================================
+ 🚀 Nixopus Control Plane is ready!
+--------------------------------------------------------------------------------
+• CLI version: ${NIXOPUS_VERSION}
+• Detected IP: ${SERVER_IP:-unavailable}
+
+🌐 Default endpoints (customize via 'nixopus install'):
+  - View (Caddy / HTTPS): https://${SERVER_IP:-your-ip}:7443
+  - Secure API: https://${SERVER_IP:-your-ip}:8443
+
+🛠 Useful commands
+  - nixopus --help                   # Discover all subcommands
+  - nixopus install --force          # Reapply configuration
+  - nixopus-redeploy                 # Shortcut with logs in /var/log/nixopus/
+  - docker ps                        # Inspect managed containers
+  - journalctl -u docker -f          # Follow Docker Engine logs
+
+🔐 Firewall (ufw) configuration required:
+    Configure ufw to allow the following ports:
+    - SSH: 22/tcp
+    - Caddy: 80/tcp (HTTP), 443/tcp (HTTPS), 2019/tcp (Admin)
+    - Nixopus: 7443/tcp (Frontend), 8443/tcp (API)
+    - Database: 5432/tcp (PostgreSQL), 6379/tcp (Redis)
+    - Auth: 3567/tcp (SuperTokens)
+    
+    Example command:
+    ufw allow 22/tcp && ufw allow 80/tcp && ufw allow 443/tcp && \\
+    ufw allow 7443/tcp && ufw allow 8443/tcp && ufw allow 2019/tcp && \\
+    ufw allow 3567/tcp && ufw allow 5432/tcp && ufw allow 6379/tcp && \\
+    ufw --force enable
+
+📚 Official docs: https://docs.nixopus.com/
+================================================================================
+To remove this message: rm -f /etc/update-motd.d/99-startup
+EOF
+
