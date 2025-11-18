@@ -4,14 +4,14 @@ SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
 NIXOPUS_VERSION=$(nixopus --version 2>/dev/null || echo "unknown")
 
 cat <<EOF
-================================================================================
+===============================================================================
  🚀 Nixopus Control Plane is ready!
 --------------------------------------------------------------------------------
 • CLI version: ${NIXOPUS_VERSION}
 • Detected IP: ${SERVER_IP:-unavailable}
 
 🌐 Default endpoints (customize via 'nixopus install'):
-  - View (Caddy / HTTPS): https://${SERVER_IP:-your-ip}:7443
+  - View (Caddy / HTTPS): http://${SERVER_IP:-your-ip}:7443
   - Secure API: https://${SERVER_IP:-your-ip}:8443
 
 🛠 Useful commands
