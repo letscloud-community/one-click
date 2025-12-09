@@ -15,21 +15,39 @@ echo "[onboot] Ensuring Docker service is running..."
 systemctl enable --now docker || true
 sleep 3
 
-echo "[onboot] Stopping all Docker containers before redeploy..."
-if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
-  docker stop $(docker ps -q) 2>/dev/null || echo "[onboot] No running containers to stop"
-  echo "[onboot] Docker containers stopped"
-else
-  echo "[onboot] WARNING: Docker not available, skipping container stop..."
+echo "[onboot] Installing Nixopus using official installer..."
+INSTALL_LOG="/var/log/nixopus/install.log"
+mkdir -p "$(dirname "${INSTALL_LOG}")"
+: > "${INSTALL_LOG}"
+
+PUBLIC_IP="$(curl -fsSL https://ifconfig.me 2>/dev/null || curl -fsSL https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}')"
+NIXOPUS_ARGS=(
+  "--force"
+  "--timeout" "900"
+  "--api-port" "8443"
+  "--view-port" "7443"
+)
+
+if [ -n "${PUBLIC_IP:-}" ]; then
+  NIXOPUS_ARGS+=("--host-ip" "${PUBLIC_IP}")
 fi
 
-echo "[onboot] Running nixopus-redeploy before unlocking SSH..."
-if command -v nixopus-redeploy >/dev/null 2>&1; then
-  nixopus-redeploy || {
-    echo "[onboot] WARNING: nixopus-redeploy failed, but continuing with SSH unlock..."
-  }
+attempt=1
+max_attempts=3
+until curl -sSL https://install.nixopus.com | bash -s -- "${NIXOPUS_ARGS[@]}" 2>&1 | tee -a "${INSTALL_LOG}"; do
+  if [ "$attempt" -ge "$max_attempts" ]; then
+    echo "[onboot] ERROR: Nixopus installation failed after ${max_attempts} attempts. Check ${INSTALL_LOG}."
+    break
+  fi
+  attempt=$((attempt + 1))
+  echo "[onboot] WARN: Retrying Nixopus installation (attempt ${attempt}/${max_attempts}) in 15s..."
+  sleep 15
+done
+
+if command -v nixopus >/dev/null 2>&1; then
+  echo "[onboot] Installed Nixopus version: $(nixopus --version 2>/dev/null || echo 'unknown')"
 else
-  echo "[onboot] WARNING: nixopus-redeploy not found, skipping..."
+  echo "[onboot] WARNING: The 'nixopus' binary was not found after installation."
 fi
 
 echo "[onboot] Removing temporary SSH ForceCommand guard..."
