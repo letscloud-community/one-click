@@ -1,0 +1,98 @@
+#!/bin/bash
+
+set -euo pipefail
+
+LOG_FILE="/var/log/clawdbot-setup.log"
+mkdir -p "$(dirname "${LOG_FILE}")"
+exec > >(tee -a "${LOG_FILE}") 2>&1
+
+if [ -z "${HOME:-}" ]; then
+  export HOME=/root
+fi
+
+SETUP_DONE="/opt/clawdbot/.setup_done"
+if [ -f "${SETUP_DONE}" ]; then
+  exit 0
+fi
+
+# Release SSH immediately so root login is not blocked.
+sed -e '/Match User root/d' \
+    -e '/.*ForceCommand.*instance.*/d' \
+    -i /etc/ssh/sshd_config
+systemctl restart ssh || systemctl restart sshd || true
+
+if command -v cloud-init >/dev/null 2>&1; then
+  timeout 120 cloud-init status --wait || true
+fi
+sleep 5
+
+if ! command -v openclaw >/dev/null 2>&1; then
+  echo "OpenClaw CLI not installed; setup skipped."
+  exit 0
+fi
+
+CONFIG_DIR="/root/.openclaw"
+WORKSPACE_DIR="/root/.openclaw/workspace"
+TOKEN_FILE="/opt/clawdbot/gateway-token.txt"
+CONFIG_FILE="${CONFIG_DIR}/openclaw.json"
+
+mkdir -p "${CONFIG_DIR}" "${WORKSPACE_DIR}" /opt/clawdbot
+
+# Generate gateway token on first boot
+GATEWAY_TOKEN=$(openssl rand -hex 32)
+echo "${GATEWAY_TOKEN}" > "${TOKEN_FILE}"
+chmod 600 "${TOKEN_FILE}"
+
+# Create minimal config so gateway can start.
+# gateway.mode=local required; bind via CLI (clawdbot-start) for 0.0.0.0
+cat > "${CONFIG_FILE}" <<EOF
+{
+  "gateway": {
+    "mode": "local",
+    "port": 18789,
+    "auth": {
+      "mode": "token",
+      "token": "${GATEWAY_TOKEN}"
+    }
+  }
+}
+EOF
+chmod 600 "${CONFIG_FILE}"
+
+# Start the gateway service
+systemctl daemon-reload
+systemctl enable clawdbot
+systemctl start clawdbot
+
+# Enable HTTPS (self-signed) and create tokenized URL for Control UI
+if command -v caddy >/dev/null 2>&1; then
+  SERVER_IP=$(curl -s --connect-timeout 2 https://ifconfig.me 2>/dev/null || curl -s --connect-timeout 2 https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}')
+  mkdir -p /etc/caddy/ssl
+  if [ ! -f /etc/caddy/ssl/cert.pem ]; then
+    openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+      -keyout /etc/caddy/ssl/key.pem -out /etc/caddy/ssl/cert.pem \
+      -subj "/CN=${SERVER_IP}" -addext "subjectAltName=IP:${SERVER_IP}"
+    chown caddy:caddy /etc/caddy/ssl/*.pem 2>/dev/null || true
+    chmod 600 /etc/caddy/ssl/key.pem
+    chmod 644 /etc/caddy/ssl/cert.pem
+    cat > /etc/caddy/Caddyfile << CADDYEOF
+:443 {
+    tls /etc/caddy/ssl/cert.pem /etc/caddy/ssl/key.pem
+    reverse_proxy localhost:18789
+}
+CADDYEOF
+    mkdir -p /etc/systemd/system/caddy.service.d
+    cat > /etc/systemd/system/caddy.service.d/override.conf << 'OVREOF'
+[Service]
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE CAP_NET_RAW
+OVREOF
+    systemctl daemon-reload
+    systemctl enable caddy
+    systemctl restart caddy
+  fi
+  echo "https://${SERVER_IP}/?token=${GATEWAY_TOKEN}" > /opt/clawdbot/control-ui-url.txt
+  chmod 644 /opt/clawdbot/control-ui-url.txt
+fi
+
+touch "${SETUP_DONE}"

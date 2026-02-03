@@ -1,0 +1,15 @@
+#!/bin/bash
+
+set -euo pipefail
+
+if ! command -v openclaw >/dev/null 2>&1; then
+  echo "OpenClaw CLI not installed; start skipped."
+  exit 0
+fi
+
+export XDG_CONFIG_HOME="/root/.openclaw"
+
+exec openclaw gateway \
+  --bind "${CLAWDBOT_GATEWAY_BIND:-lan}" \
+  --port "${CLAWDBOT_GATEWAY_PORT:-18789}" \
+  --allow-unconfigured

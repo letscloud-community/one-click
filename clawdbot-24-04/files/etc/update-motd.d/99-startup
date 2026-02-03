@@ -1,0 +1,45 @@
+#!/bin/sh
+
+myip=$(hostname -I | awk '{print$1}')
+if [ -f /opt/clawdbot/control-ui-url.txt ]; then
+  access_url=$(cat /opt/clawdbot/control-ui-url.txt)
+  access_info="  Copy and open in browser: ${access_url}"
+else
+  token=$(cat /opt/clawdbot/gateway-token.txt 2>/dev/null || echo "")
+  if [ -n "${token}" ]; then
+    access_info="  URL with token: https://${myip}/?token=${token}"
+  else
+    access_info="  Token: cat /opt/clawdbot/gateway-token.txt"
+  fi
+fi
+
+cat <<EOF
+================================================================================
+
+ 🤖 Welcome to your new OpenClaw gateway on LetsCloud!
+
+HTTPS is enabled on first boot. Control UI access:
+${access_info}
+  (Browser will show cert warning - click Advanced -> Proceed)
+
+If you see "pairing required", approve your device (one-time):
+  openclaw devices list
+  openclaw devices approve REQUEST_ID
+
+Other options:
+  - HTTPS (domain): /opt/setup-https-openclaw.sh your-domain.com
+  - SSH tunnel: ssh -L 18789:localhost:18789 root@${myip}  then http://localhost:18789/
+
+Configure API keys and channels (WhatsApp, Telegram, Discord, etc.):
+  openclaw onboard --install-daemon
+
+Helper scripts:
+  /opt/status-openclaw.sh     - Status and access URL
+  /opt/restart-openclaw.sh    - Restart the gateway
+  /opt/update-openclaw.sh     - Update OpenClaw
+
+Docs: https://docs.openclaw.ai/start/getting-started
+
+================================================================================
+To remove this message: rm -rf $(readlink -f ${0})
+EOF
