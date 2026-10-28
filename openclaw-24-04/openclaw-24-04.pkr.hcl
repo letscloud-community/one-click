@@ -11,17 +11,17 @@ variable "api_key" {
   type = string
 }
 
-source "letscloud" "clawdbot" {
+source "letscloud" "openclaw" {
   api_key       = var.api_key
   location_slug = "sao2"
-  plan_slug     = "1vcpu-2gb-20ssd"
+  plan_slug     = "1vcpu-2gb-50ssd"
   image_slug    = "ubuntu-24.04-x86_64"
-  snapshot_name = "clawdbot-24-04"
+  snapshot_name = "openclaw-24-04"
   ssh_username  = "root"
 }
 
 build {
-  sources = ["source.letscloud.clawdbot"]
+  sources = ["source.letscloud.openclaw"]
 
   provisioner "shell" {
     inline = [
@@ -68,7 +68,7 @@ build {
       "LC_CTYPE=en_US.UTF-8"
     ]
     scripts = [
-      "./scripts/011-clawdbot.sh",
+      "./scripts/011-openclaw.sh",
       "../common-scripts/018-force-ssh.sh",
       "../common-scripts/900-cleanup.sh"
     ]
@@ -76,8 +76,8 @@ build {
 
   post-processor "shell-local" {
     inline = [
-      "echo 'clawdbot image built successfully!'",
-      "echo 'You can now deploy this snapshot to create clawdbot instances'"
+      "echo 'openclaw image built successfully!'",
+      "echo 'You can now deploy this snapshot to create openclaw instances'"
     ]
   }
 }

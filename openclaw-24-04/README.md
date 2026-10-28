@@ -5,7 +5,7 @@ One-click image with [OpenClaw](https://openclaw.ai) pre-installed. OpenClaw is 
 ## What's Included
 
 - **Ubuntu 24.04**
-- **Node.js 22.x**
+- **Node.js 24 LTS (24.22.1+)**
 - **OpenClaw CLI** (installed via official script)
 - **Gateway token** auto-generated on first boot
 - **Helper scripts** for status, restart, and update
@@ -19,10 +19,10 @@ One-click image with [OpenClaw](https://openclaw.ai) pre-installed. OpenClaw is 
 
 2. The Gateway starts automatically. Get the token:
    ```bash
-   cat /opt/clawdbot/gateway-token.txt
+   cat /opt/openclaw/gateway-token.txt
    ```
 
-3. Access the Control UI. HTTPS is enabled on first boot. Run `cat /opt/clawdbot/control-ui-url.txt` to get the URL with token, or see [Gateway Access](#gateway-access) for all options.
+3. Access the Control UI. HTTPS is enabled on first boot. Run `cat /opt/openclaw/control-ui-url.txt` to get the URL with token, or see [Gateway Access](#gateway-access) for all options.
 
 4. Configure API keys and channels (optional):
    ```bash
@@ -38,7 +38,7 @@ The Gateway is available immediately after first boot. **HTTPS is enabled automa
 HTTPS with self-signed certificate is configured automatically. Get the **tokenized URL** (includes token, no manual paste):
 
 ```bash
-cat /opt/clawdbot/control-ui-url.txt
+cat /opt/openclaw/control-ui-url.txt
 ```
 
 Copy the URL and open it in your browser. Accept the certificate warning (Advanced → Proceed). The token in the URL authenticates automatically.
@@ -72,7 +72,7 @@ Then open **http://localhost:18789/** in your browser. Paste the token when prom
 
 ---
 
-**Token:** `cat /opt/clawdbot/gateway-token.txt` | **URL with token:** `cat /opt/clawdbot/control-ui-url.txt`
+**Token:** `cat /opt/openclaw/gateway-token.txt` | **URL with token:** `cat /opt/openclaw/control-ui-url.txt`
 
 > Ensure port 443 is open in your cloud firewall for HTTPS access.
 
@@ -105,8 +105,8 @@ Then open **http://localhost:18789/** in your browser. Paste the token when prom
 - **Config**: `~/.openclaw/`
 - **Workspace**: `~/.openclaw/workspace`
 - **Credentials**: `~/.openclaw/credentials/`
-- **Token**: `/opt/clawdbot/gateway-token.txt`
-- **URL with token**: `/opt/clawdbot/control-ui-url.txt` (use this to access Control UI)
+- **Token**: `/opt/openclaw/gateway-token.txt`
+- **URL with token**: `/opt/openclaw/control-ui-url.txt` (use this to access Control UI)
 
 ## Documentation
 
@@ -123,7 +123,17 @@ export PATH="$(npm prefix -g)/bin:$PATH"
 ```
 
 **Channels won't connect**
-- Use Node.js 22+ (Bun has compatibility issues with WhatsApp/Telegram)
+- Use a supported Node.js version: 24.22.1+ or 26.12.1+ (Bun has compatibility issues with WhatsApp/Telegram)
+
+**Updating an existing instance**
+The Node.js version is updated automatically only on newly built images. On an existing instance, update Node.js before updating OpenClaw:
+```bash
+curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
+apt-get update
+apt-get install -y nodejs
+node --version
+/opt/update-openclaw.sh
+```
 
 **Gateway won't start**
 ```bash
@@ -137,6 +147,32 @@ openclaw devices list
 openclaw devices approve REQUEST_ID
 ```
 
+**HTTP 502 in the browser**
+Caddy is up but the Gateway is not answering yet. The Gateway needs about 30 seconds to accept requests after a restart. Wait for it:
+```bash
+/usr/local/bin/openclaw-wait-ready 300 && echo ready
+systemctl status openclaw --no-pager
+```
+
+**HTTP 403 `proxy_attribution_required`**
+The Gateway does not trust the local reverse proxy. Re-apply the origin settings (`gateway.trustedProxies`, `gateway.publicOrigin`, `gateway.controlUi.allowedOrigins`) and restart:
+```bash
+/usr/local/bin/openclaw-set-origin https://YOUR_IP_OR_DOMAIN
+systemctl restart openclaw
+```
+
+## Architecture
+
+The Gateway listens on `127.0.0.1:18789` only; Caddy terminates HTTPS on port 443 and proxies to it, overwriting `X-Forwarded-For`/`X-Real-IP` so the Gateway can attribute the real client. Port 18789 is never exposed to the internet.
+
+| File | Purpose |
+|------|---------|
+| `/usr/local/bin/openclaw-setup` | First-boot setup (token, config, HTTPS, readiness wait) |
+| `/usr/local/bin/openclaw-start` | Gateway launcher used by `openclaw.service` |
+| `/usr/local/bin/openclaw-set-origin` | Sets trusted proxy and browser origins in the config |
+| `/usr/local/bin/openclaw-write-caddyfile` | Writes the Caddy reverse-proxy config |
+| `/usr/local/bin/openclaw-wait-ready` | Blocks until the Gateway answers on loopback |
+
 ---
 
 # Português
@@ -146,7 +182,7 @@ Imagem one-click com [OpenClaw](https://openclaw.ai) pré-instalado. OpenClaw é
 ## O que está incluído
 
 - **Ubuntu 24.04**
-- **Node.js 22.x**
+- **Node.js 24 LTS (24.22.1+)**
 - **OpenClaw CLI** (instalado via script oficial)
 - **Token do Gateway** gerado automaticamente no primeiro boot
 - **Scripts auxiliares** para status, reinício e atualização
@@ -160,10 +196,10 @@ Imagem one-click com [OpenClaw](https://openclaw.ai) pré-instalado. OpenClaw é
 
 2. O Gateway inicia automaticamente. Obtenha o token:
    ```bash
-   cat /opt/clawdbot/gateway-token.txt
+   cat /opt/openclaw/gateway-token.txt
    ```
 
-3. Acesse a Control UI. O HTTPS é ativado no primeiro boot. Execute `cat /opt/clawdbot/control-ui-url.txt` para obter a URL com token, ou veja [Acesso ao Gateway](#acesso-ao-gateway) para todas as opções.
+3. Acesse a Control UI. O HTTPS é ativado no primeiro boot. Execute `cat /opt/openclaw/control-ui-url.txt` para obter a URL com token, ou veja [Acesso ao Gateway](#acesso-ao-gateway) para todas as opções.
 
 4. Configure chaves de API e canais (opcional):
    ```bash
@@ -179,7 +215,7 @@ O Gateway fica disponível logo após o primeiro boot. **HTTPS é ativado automa
 HTTPS com certificado autoassinado é configurado automaticamente. Obtenha a **URL com token** (inclui o token, sem colar manualmente):
 
 ```bash
-cat /opt/clawdbot/control-ui-url.txt
+cat /opt/openclaw/control-ui-url.txt
 ```
 
 Copie a URL e abra no navegador. Aceite o aviso de certificado (Avançado → Continuar). O token na URL autentica automaticamente.
@@ -213,7 +249,7 @@ Depois abra **http://localhost:18789/** no navegador. Cole o token quando solici
 
 ---
 
-**Token:** `cat /opt/clawdbot/gateway-token.txt` | **URL com token:** `cat /opt/clawdbot/control-ui-url.txt`
+**Token:** `cat /opt/openclaw/gateway-token.txt` | **URL com token:** `cat /opt/openclaw/control-ui-url.txt`
 
 > Libere a porta 443 no firewall da nuvem para acesso HTTPS.
 
@@ -246,8 +282,8 @@ Depois abra **http://localhost:18789/** no navegador. Cole o token quando solici
 - **Config**: `~/.openclaw/`
 - **Workspace**: `~/.openclaw/workspace`
 - **Credenciais**: `~/.openclaw/credentials/`
-- **Token**: `/opt/clawdbot/gateway-token.txt`
-- **URL com token**: `/opt/clawdbot/control-ui-url.txt` (use para acessar a Control UI)
+- **Token**: `/opt/openclaw/gateway-token.txt`
+- **URL com token**: `/opt/openclaw/control-ui-url.txt` (use para acessar a Control UI)
 
 ## Documentação
 
@@ -264,7 +300,17 @@ export PATH="$(npm prefix -g)/bin:$PATH"
 ```
 
 **Canais não conectam**
-- Use Node.js 22+ (Bun tem problemas de compatibilidade com WhatsApp/Telegram)
+- Use uma versão compatível do Node.js: 24.22.1+ ou 26.12.1+ (Bun tem problemas de compatibilidade com WhatsApp/Telegram)
+
+**Atualizando uma instância existente**
+A versão do Node.js é atualizada automaticamente apenas em imagens recém-criadas. Em uma instância existente, atualize o Node.js antes do OpenClaw:
+```bash
+curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
+apt-get update
+apt-get install -y nodejs
+node --version
+/opt/update-openclaw.sh
+```
 
 **Gateway não inicia**
 ```bash
@@ -277,3 +323,29 @@ openclaw status --all
 openclaw devices list
 openclaw devices approve REQUEST_ID
 ```
+
+**Erro HTTP 502 no navegador**
+O Caddy está no ar, mas o Gateway ainda não responde. Após um reinício o Gateway leva cerca de 30 segundos para aceitar requisições. Aguarde:
+```bash
+/usr/local/bin/openclaw-wait-ready 300 && echo pronto
+systemctl status openclaw --no-pager
+```
+
+**Erro HTTP 403 `proxy_attribution_required`**
+O Gateway não confia no proxy reverso local. Reaplique as configurações de origem (`gateway.trustedProxies`, `gateway.publicOrigin`, `gateway.controlUi.allowedOrigins`) e reinicie:
+```bash
+/usr/local/bin/openclaw-set-origin https://SEU_IP_OU_DOMINIO
+systemctl restart openclaw
+```
+
+## Arquitetura
+
+O Gateway escuta apenas em `127.0.0.1:18789`; o Caddy termina o HTTPS na porta 443 e faz o proxy para ele, sobrescrevendo `X-Forwarded-For`/`X-Real-IP` para que o Gateway identifique o cliente real. A porta 18789 nunca é exposta à internet.
+
+| Arquivo | Função |
+|---------|--------|
+| `/usr/local/bin/openclaw-setup` | Configuração do primeiro boot (token, config, HTTPS, espera de readiness) |
+| `/usr/local/bin/openclaw-start` | Inicializador do Gateway usado por `openclaw.service` |
+| `/usr/local/bin/openclaw-set-origin` | Define o proxy confiável e as origens do navegador na config |
+| `/usr/local/bin/openclaw-write-caddyfile` | Escreve a config de proxy reverso do Caddy |
+| `/usr/local/bin/openclaw-wait-ready` | Bloqueia até o Gateway responder no loopback |

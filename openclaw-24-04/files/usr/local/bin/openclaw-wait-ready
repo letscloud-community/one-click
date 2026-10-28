@@ -1,0 +1,34 @@
+#!/bin/bash
+# Block until the gateway answers HTTP on loopback.
+# Usage: openclaw-wait-ready [timeout-seconds]
+
+set -uo pipefail
+
+TIMEOUT="${1:-300}"
+PORT="${OPENCLAW_GATEWAY_PORT:-18789}"
+# A restart leaves the previous process listening for a moment, so a single
+# successful probe can come from the gateway that is already going away. Only
+# a run of consecutive successes means the new one is serving.
+REQUIRED_OK="${OPENCLAW_WAIT_READY_STREAK:-3}"
+DEADLINE=$(( $(date +%s) + TIMEOUT ))
+STREAK=0
+
+while [ "$(date +%s)" -lt "${DEADLINE}" ]; do
+  # curl already prints 000 when it cannot connect, and `|| echo 000` would
+  # append a second line that no longer matches the failure cases below.
+  STATUS=$(curl -s -o /dev/null -m 5 -w '%{http_code}' "http://127.0.0.1:${PORT}/" 2>/dev/null) || true
+  case "${STATUS}" in
+    200|[23][0-9][0-9]|40[0-9]|41[0-9])
+      STREAK=$(( STREAK + 1 ))
+      if [ "${STREAK}" -ge "${REQUIRED_OK}" ]; then
+        exit 0
+      fi
+      ;;
+    *)
+      STREAK=0
+      ;;
+  esac
+  sleep 3
+done
+
+exit 1

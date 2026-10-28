@@ -1,0 +1,41 @@
+#!/bin/bash
+# Point the gateway config at a public origin served by the local reverse proxy.
+# Usage: openclaw-set-origin https://host-or-ip
+
+set -euo pipefail
+
+ORIGIN="${1:-}"
+if [ -z "${ORIGIN}" ]; then
+  echo "Usage: $(basename "$0") https://host-or-ip" >&2
+  exit 1
+fi
+
+CONFIG_FILE="${OPENCLAW_CONFIG_PATH:-/root/.openclaw/openclaw.json}"
+PORT="${OPENCLAW_GATEWAY_PORT:-18789}"
+
+mkdir -p "$(dirname "${CONFIG_FILE}")"
+
+node -e '
+const fs = require("node:fs");
+const [file, origin, port] = process.argv.slice(1);
+const config = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : {};
+config.gateway = config.gateway || {};
+const gateway = config.gateway;
+// Caddy runs on the same host, so the gateway needs it listed as a trusted
+// proxy to attribute the forwarded client IP. Otherwise every proxied request
+// is refused with HTTP 403 proxy_attribution_required.
+gateway.trustedProxies = ["127.0.0.1", "::1"];
+gateway.publicOrigin = origin;
+gateway.controlUi = gateway.controlUi || {};
+// A non-loopback Control UI needs its browser origins listed. Keep the
+// loopback origins so the SSH tunnel keeps working.
+gateway.controlUi.allowedOrigins = [
+  origin,
+  `http://localhost:${port}`,
+  `http://127.0.0.1:${port}`,
+];
+fs.writeFileSync(file, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 });
+' "${CONFIG_FILE}" "${ORIGIN}" "${PORT}"
+
+chmod 600 "${CONFIG_FILE}"
+echo "Gateway public origin set to ${ORIGIN}"

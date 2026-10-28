@@ -1,0 +1,22 @@
+#!/bin/bash
+
+set -euo pipefail
+
+if ! command -v openclaw >/dev/null 2>&1; then
+  echo "OpenClaw CLI not installed; start skipped."
+  exit 0
+fi
+
+export HOME="${HOME:-/root}"
+
+# Bind mode comes from /root/.openclaw/openclaw.json (loopback, behind Caddy)
+# unless explicitly overridden.
+BIND_ARGS=()
+if [ -n "${OPENCLAW_GATEWAY_BIND:-}" ]; then
+  BIND_ARGS=(--bind "${OPENCLAW_GATEWAY_BIND}")
+fi
+
+exec openclaw gateway \
+  "${BIND_ARGS[@]}" \
+  --port "${OPENCLAW_GATEWAY_PORT:-18789}" \
+  --allow-unconfigured

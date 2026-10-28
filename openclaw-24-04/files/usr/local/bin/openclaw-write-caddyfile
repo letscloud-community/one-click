@@ -1,0 +1,39 @@
+#!/bin/bash
+# Write the Caddy reverse-proxy config for the OpenClaw Control UI.
+# Usage: openclaw-write-caddyfile [domain]
+#   No arg: self-signed certificate on :443
+#   Domain: Let's Encrypt certificate for that domain
+
+set -euo pipefail
+
+DOMAIN="${1:-}"
+PORT="${OPENCLAW_GATEWAY_PORT:-18789}"
+
+mkdir -p /etc/caddy
+
+# X-Forwarded-For/X-Real-IP are overwritten (not appended) so the gateway can
+# attribute the real client IP; appended client-supplied values are rejected.
+if [ -n "${DOMAIN}" ]; then
+  cat > /etc/caddy/Caddyfile <<CADDYEOF
+${DOMAIN} {
+    reverse_proxy 127.0.0.1:${PORT} {
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Real-IP {remote_host}
+    }
+}
+CADDYEOF
+else
+  cat > /etc/caddy/Caddyfile <<CADDYEOF
+:80 {
+    redir https://{host}{uri} permanent
+}
+
+:443 {
+    tls /etc/caddy/ssl/cert.pem /etc/caddy/ssl/key.pem
+    reverse_proxy 127.0.0.1:${PORT} {
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Real-IP {remote_host}
+    }
+}
+CADDYEOF
+fi

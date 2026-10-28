@@ -1,13 +1,13 @@
 [Unit]
-Description=Clawdbot Gateway
+Description=OpenClaw Gateway
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-EnvironmentFile=-/opt/clawdbot/.env
-Environment=XDG_CONFIG_HOME=/root/.openclaw
-ExecStart=/usr/local/bin/clawdbot-start
+EnvironmentFile=-/opt/openclaw/.env
+Environment=HOME=/root
+ExecStart=/usr/local/bin/openclaw-start
 Restart=on-failure
 RestartSec=5
 TimeoutStartSec=120

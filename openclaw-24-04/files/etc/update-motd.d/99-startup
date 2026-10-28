@@ -1,15 +1,23 @@
 #!/bin/sh
 
 myip=$(hostname -I | awk '{print$1}')
-if [ -f /opt/clawdbot/control-ui-url.txt ]; then
-  access_url=$(cat /opt/clawdbot/control-ui-url.txt)
+if [ -f /opt/openclaw/control-ui-url.txt ]; then
+  access_url=$(cat /opt/openclaw/control-ui-url.txt)
   access_info="  Copy and open in browser: ${access_url}"
 else
-  token=$(cat /opt/clawdbot/gateway-token.txt 2>/dev/null || echo "")
+  token=$(cat /opt/openclaw/gateway-token.txt 2>/dev/null || echo "")
   if [ -n "${token}" ]; then
     access_info="  URL with token: https://${myip}/?token=${token}"
   else
-    access_info="  Token: cat /opt/clawdbot/gateway-token.txt"
+    access_info="  OpenClaw is still starting.
+
+  If you just created this server, please wait a few minutes and log in again.
+
+  Once the setup process is finished, the token will be saved at:
+    /opt/openclaw/gateway-token.txt
+
+  To view the token, run:
+    cat /opt/openclaw/gateway-token.txt"
   fi
 fi
 

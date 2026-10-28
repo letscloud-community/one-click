@@ -1,13 +1,13 @@
 [Unit]
-Description=Clawdbot First Boot Setup
+Description=OpenClaw First Boot Setup
 After=network-online.target
 Wants=network-online.target
-ConditionPathExists=!/opt/clawdbot/.setup_done
+ConditionPathExists=!/opt/openclaw/.setup_done
 
 [Service]
 Type=oneshot
 Environment=HOME=/root
-ExecStart=/usr/local/bin/clawdbot-setup
+ExecStart=/usr/local/bin/openclaw-setup
 TimeoutStartSec=1800
 
 [Install]

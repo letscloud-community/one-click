@@ -1,0 +1,113 @@
+#!/bin/bash
+
+set -euo pipefail
+
+LOG_FILE="/var/log/openclaw-setup.log"
+mkdir -p "$(dirname "${LOG_FILE}")"
+exec > >(tee -a "${LOG_FILE}") 2>&1
+
+if [ -z "${HOME:-}" ]; then
+  export HOME=/root
+fi
+
+SETUP_DONE="/opt/openclaw/.setup_done"
+if [ -f "${SETUP_DONE}" ]; then
+  exit 0
+fi
+
+if command -v cloud-init >/dev/null 2>&1; then
+  timeout 120 cloud-init status --wait || true
+fi
+sleep 5
+
+if ! command -v openclaw >/dev/null 2>&1; then
+  echo "OpenClaw CLI not installed; setup skipped."
+  exit 0
+fi
+
+CONFIG_DIR="/root/.openclaw"
+WORKSPACE_DIR="/root/.openclaw/workspace"
+TOKEN_FILE="/opt/openclaw/gateway-token.txt"
+CONFIG_FILE="${CONFIG_DIR}/openclaw.json"
+
+mkdir -p "${CONFIG_DIR}" "${WORKSPACE_DIR}" /opt/openclaw
+
+# Generate gateway token on first boot
+GATEWAY_TOKEN=$(openssl rand -hex 32)
+echo "${GATEWAY_TOKEN}" > "${TOKEN_FILE}"
+chmod 600 "${TOKEN_FILE}"
+
+SERVER_IP=$(curl -s --connect-timeout 2 https://ifconfig.me 2>/dev/null || curl -s --connect-timeout 2 https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}')
+
+# Create minimal config so gateway can start.
+# gateway.mode=local is required; the gateway stays on loopback and Caddy
+# terminates HTTPS in front of it.
+cat > "${CONFIG_FILE}" <<EOF
+{
+  "gateway": {
+    "mode": "local",
+    "port": 18789,
+    "bind": "loopback",
+    "auth": {
+      "mode": "token",
+      "token": "${GATEWAY_TOKEN}"
+    }
+  }
+}
+EOF
+chmod 600 "${CONFIG_FILE}"
+
+# Without trustedProxies/allowedOrigins the gateway rejects the Caddy requests
+# with HTTP 403 proxy_attribution_required.
+if command -v caddy >/dev/null 2>&1; then
+  /usr/local/bin/openclaw-set-origin "https://${SERVER_IP}"
+fi
+
+# Start the gateway service
+systemctl daemon-reload
+systemctl enable openclaw
+systemctl start openclaw
+
+# Enable HTTPS (self-signed) and create tokenized URL for Control UI
+if command -v caddy >/dev/null 2>&1; then
+  mkdir -p /etc/caddy/ssl
+  if [ ! -f /etc/caddy/ssl/cert.pem ]; then
+    openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+      -keyout /etc/caddy/ssl/key.pem -out /etc/caddy/ssl/cert.pem \
+      -subj "/CN=${SERVER_IP}" -addext "subjectAltName=IP:${SERVER_IP}"
+    chown caddy:caddy /etc/caddy/ssl/*.pem 2>/dev/null || true
+    chmod 600 /etc/caddy/ssl/key.pem
+    chmod 644 /etc/caddy/ssl/cert.pem
+  fi
+  /usr/local/bin/openclaw-write-caddyfile
+  mkdir -p /etc/systemd/system/caddy.service.d
+  cat > /etc/systemd/system/caddy.service.d/override.conf << 'OVREOF'
+[Service]
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE CAP_NET_RAW
+OVREOF
+  systemctl daemon-reload
+  systemctl enable caddy
+  systemctl restart caddy
+fi
+
+# The gateway needs ~30s to accept requests. Publishing the URL (and releasing
+# SSH) earlier is what makes the browser show a Caddy 502.
+if /usr/local/bin/openclaw-wait-ready 300; then
+  echo "Gateway is accepting requests."
+else
+  echo "Warning: gateway did not become ready in time; check: journalctl -u openclaw -xe"
+fi
+
+if command -v caddy >/dev/null 2>&1; then
+  echo "https://${SERVER_IP}/?token=${GATEWAY_TOKEN}" > /opt/openclaw/control-ui-url.txt
+  chmod 644 /opt/openclaw/control-ui-url.txt
+fi
+
+# Release SSH now that setup is complete, so root login is available.
+sed -e '/Match User root/d' \
+    -e '/.*ForceCommand.*instance.*/d' \
+    -i /etc/ssh/sshd_config
+systemctl restart ssh || systemctl restart sshd || true
+
+touch "${SETUP_DONE}"
