@@ -1,0 +1,15 @@
+[Unit]
+Description=Hourly RuneScape: Dragonwilds update check
+Documentation=file:/opt/dragonwilds/scripts/update.sh
+
+[Timer]
+# Checks hourly, but update.sh only restarts the server inside the maintenance
+# window (DW_UPDATE_WINDOW_HOUR) and only while no player is connected.
+# Runs at :37 so it never collides with the backup timer at :07.
+OnCalendar=*-*-* *:37:00
+Persistent=true
+RandomizedDelaySec=300
+Unit=dragonwilds-update.service
+
+[Install]
+WantedBy=timers.target

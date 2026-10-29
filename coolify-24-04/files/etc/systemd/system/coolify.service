@@ -1,0 +1,16 @@
+[Unit]
+Description=Coolify self-hosted PaaS
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/data/coolify/source
+ExecStart=/opt/start-coolify.sh
+ExecStop=/opt/stop-coolify.sh
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target

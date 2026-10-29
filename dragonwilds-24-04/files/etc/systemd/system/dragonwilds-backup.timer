@@ -1,0 +1,17 @@
+[Unit]
+Description=Hourly RuneScape: Dragonwilds world backup
+Documentation=file:/opt/dragonwilds/scripts/backup.sh
+
+[Timer]
+# Runs a few minutes past every hour. backup.sh --auto also promotes the 04:00
+# run to a daily copy and the Sunday 04:00 run to a weekly one.
+OnCalendar=*-*-* *:07:00
+# Catches up after the instance was powered off.
+Persistent=true
+# Spreads the load so many instances built from this image do not all run at
+# the same second.
+RandomizedDelaySec=180
+Unit=dragonwilds-backup.service
+
+[Install]
+WantedBy=timers.target

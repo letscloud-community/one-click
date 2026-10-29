@@ -1,41 +1,39 @@
 #!/bin/bash
+# Safety net for the first boot.
+#
+# The stack is normally brought up by n8n-init.service and n8n.service during
+# the regular systemd boot, which completes before cloud-init runs this script.
+# This is only a verification pass that retries once, so an instance is never
+# left with a dead stack because the network or Docker was not ready in time.
+#
+# Deliberately does not call "cloud-init status --wait": this script is itself
+# executed by cloud-init, so waiting for cloud-init to finish would deadlock.
 
-# n8n Cloud-init script
-# This script runs on first boot to ensure services are started
+# Docker must be answering before Compose can be driven.
+for _ in $(seq 1 30); do
+    docker info >/dev/null 2>&1 && break
+    sleep 2
+done
 
-# Wait for cloud-init to complete
-cloud-init status --wait
+if [ ! -f /opt/n8n/.env ]; then
+    echo "001_onboot: /opt/n8n/.env missing, running initialization..."
+    systemctl start n8n-init.service
+fi
 
-# Wait a bit more for all services to be ready
-sleep 10
+systemctl is-active --quiet nginx || systemctl restart nginx
 
-# Ensure PostgreSQL is running first
-systemctl enable postgresql
-systemctl start postgresql
-sleep 5
-
-# Ensure nginx is running
-systemctl enable nginx
-systemctl start nginx
-sleep 5
-
-# Start and enable n8n service (depends on PostgreSQL)
-systemctl enable n8n
-systemctl start n8n
-
-# Wait for n8n to fully start
-sleep 10
-
-# Check service status and restart if needed
 if ! systemctl is-active --quiet n8n; then
-    echo "n8n service not active, restarting..."
+    echo "001_onboot: n8n service inactive, restarting..."
     systemctl restart n8n
 fi
 
-if ! systemctl is-active --quiet nginx; then
-    echo "nginx service not active, restarting..."
-    systemctl restart nginx
-fi
+# Wait for n8n to answer through nginx before declaring the instance ready.
+for _ in $(seq 1 60); do
+    if curl -fsS -o /dev/null --max-time 5 http://127.0.0.1/healthz; then
+        echo "001_onboot: n8n is responding."
+        break
+    fi
+    sleep 5
+done
 
-# Remove this script after first run
 rm -f /var/lib/cloud/scripts/per-instance/001_onboot

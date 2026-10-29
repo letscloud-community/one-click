@@ -1,0 +1,15 @@
+[Unit]
+Description=RuneScape: Dragonwilds update check
+Documentation=file:/opt/dragonwilds/scripts/update.sh
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+ConditionPathExists=/opt/dragonwilds/.env
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/dragonwilds
+ExecStart=/opt/dragonwilds/scripts/update.sh
+# An update means a cold backup plus a full SteamCMD delta download.
+TimeoutStartSec=3600
+Nice=10

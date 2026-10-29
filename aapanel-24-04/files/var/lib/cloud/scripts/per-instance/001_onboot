@@ -1,0 +1,64 @@
+#!/bin/bash
+
+# aaPanel Cloud-Init Boot Script
+# This script runs on first boot to start aaPanel services
+
+set -e
+
+# Wait for cloud-init to complete
+cloud-init status --wait
+
+# Start aaPanel services
+echo "Starting aaPanel services..."
+
+# Start aaPanel
+if [ -f /etc/init.d/bt ]; then
+    /etc/init.d/bt start
+fi
+
+# Start nginx
+systemctl enable nginx
+systemctl start nginx
+
+# Start MySQL
+systemctl enable mysql
+systemctl start mysql
+
+# Start PHP-FPM (if installed)
+if systemctl list-unit-files | grep -q php-fpm; then
+    systemctl enable php-fpm
+    systemctl start php-fpm
+fi
+
+# Start Redis (if installed)
+if systemctl list-unit-files | grep -q redis; then
+    systemctl enable redis
+    systemctl start redis
+fi
+
+# Start Memcached (if installed)
+if systemctl list-unit-files | grep -q memcached; then
+    systemctl enable memcached
+    systemctl start memcached
+fi
+
+# Configure firewall
+echo "Configuring firewall..."
+ufw --force enable
+
+# Get server IP
+SERVER_IP=$(curl -s ifconfig.me || curl -s ipinfo.io/ip || hostname -I | awk '{print $1}')
+
+# Update welcome page with actual IP
+if [ -f /www/wwwroot/default/index.html ]; then
+    sed -i "s/YOUR_SERVER_IP/$SERVER_IP/g" /www/wwwroot/default/index.html
+fi
+
+# Show final status
+echo "aaPanel services started successfully!"
+echo "Panel URL: http://$SERVER_IP:$(cat /www/server/panel/data/port.pl 2>/dev/null || echo '8888')"
+echo "Run 'bt default' to see login credentials"
+echo "Run 'aapanel-manage status' to check all services"
+
+# Log completion
+echo "$(date): aaPanel cloud-init boot script completed" >> /var/log/aapanel-boot.log

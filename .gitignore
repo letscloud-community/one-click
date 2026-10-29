@@ -14,3 +14,18 @@ crash.log
 
 # For built boxes
 *.box
+
+# Runtime artefacts that must never be committed. The per-instance .env holds
+# the generated server and admin passwords; env.example is the template and is
+# tracked on purpose.
+**/.env
+!**/env.example
+**/backups/
+packer-build.log
+
+# Token da API, nunca versionar
+.letscloud_token
+**/.letscloud_token
+
+# Scratch files que ja foram usados para guardar token em texto puro
+hermes-26-04/test

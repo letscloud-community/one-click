@@ -1,0 +1,38 @@
+# Management script logs (first-boot, backup, restore, update).
+/var/log/dragonwilds/*.log {
+    weekly
+    rotate 8
+    missingok
+    notifempty
+    compress
+    delaycompress
+    copytruncate
+    create 0640 root root
+    su root root
+}
+
+# Log written by the game itself inside the persistent data directory.
+# Owned by uid 1000 because that is the user the container runs as.
+/opt/dragonwilds/data/RSDragonwilds/Saved/Logs/*.log {
+    weekly
+    rotate 4
+    missingok
+    notifempty
+    compress
+    delaycompress
+    copytruncate
+    create 0644 1000 1000
+    su root root
+}
+
+# First boot output captured by cloud-init.
+/var/log/dragonwilds-onboot.log {
+    monthly
+    rotate 2
+    missingok
+    notifempty
+    compress
+    copytruncate
+    create 0640 root root
+    su root root
+}

@@ -1,0 +1,14 @@
+[Unit]
+Description=Hermes Agent first boot preparation
+# Replaces the cloud-init per-instance hook: the Ubuntu 26.04 base image used
+# for this build does not ship cloud-init.
+After=network.target
+ConditionPathExists=!/var/lib/hermes/first-boot.done
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/hermes/first-boot.sh
+
+[Install]
+WantedBy=multi-user.target

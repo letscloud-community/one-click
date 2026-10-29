@@ -1,0 +1,14 @@
+[Unit]
+Description=RuneScape: Dragonwilds world backup
+Documentation=file:/opt/dragonwilds/scripts/backup.sh
+After=docker.service
+Requires=docker.service
+ConditionPathExists=/opt/dragonwilds/.env
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/dragonwilds
+ExecStart=/opt/dragonwilds/scripts/backup.sh --auto
+TimeoutStartSec=1800
+Nice=10
+IOSchedulingClass=idle

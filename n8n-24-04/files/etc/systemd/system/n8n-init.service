@@ -1,0 +1,16 @@
+[Unit]
+Description=n8n first-boot configuration and secret generation
+Documentation=https://docs.n8n.io
+After=network-online.target
+Wants=network-online.target
+Before=n8n.service
+ConditionPathExists=!/opt/n8n/.env
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/n8n/n8n-init.sh
+TimeoutStartSec=120
+
+[Install]
+WantedBy=multi-user.target

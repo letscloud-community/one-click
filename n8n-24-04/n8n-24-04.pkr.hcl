@@ -14,7 +14,7 @@ variable "api_key" {
 source "letscloud" "n8n" {
   api_key       = var.api_key
   location_slug = "sao2"
-  plan_slug     = "1vcpu-2gb-20ssd"
+  plan_slug     = "1vcpu-2gb-50ssd"
   image_slug    = "ubuntu-24.04-x86_64"
   snapshot_name = "n8n-24-04"
   ssh_username  = "root"
@@ -35,9 +35,15 @@ build {
   }
 
   provisioner "file" {
+    source      = "./files/opt/"
+    destination = "/opt/"
+  }
+
+  provisioner "file" {
     source      = "./files/var/"
     destination = "/var/"
   }
+
   
   provisioner "shell" {
     environment_vars = [

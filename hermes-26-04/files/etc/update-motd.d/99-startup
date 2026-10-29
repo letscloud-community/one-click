@@ -1,0 +1,35 @@
+#!/bin/bash
+
+# Hermes Agent Startup Message
+cat << 'EOF'
+===============================================
+        Hermes Agent
+===============================================
+
+Hermes Agent is installed and ready to configure.
+
+The setup wizard ('hermes setup --portal') starts automatically
+on your first login. Press Ctrl+C to skip it.
+
+Quick start:
+  hermes setup --portal
+  hermes
+
+Manual setup:
+  hermes model          Configure your LLM provider and model
+  hermes tools          Configure enabled tools
+  hermes gateway setup  Set up messaging platforms
+  hermes setup          Run the full setup wizard
+
+Diagnostics:
+  hermes doctor
+
+Install notes:
+  /opt/hermes/README
+  Installed under /root/.hermes, linked at /usr/local/bin/hermes (run as root)
+  Skip the wizard: touch /var/lib/hermes/first-login.done
+
+Documentation:
+  https://hermes-agent.nousresearch.com/docs/getting-started/installation
+===============================================
+EOF

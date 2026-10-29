@@ -1,0 +1,135 @@
+#!/bin/bash
+
+set -euo pipefail
+exec > >(tee /var/log/coolify-onboot.log) 2>&1
+
+echo "[onboot] Waiting for cloud-init to finish..."
+cloud-init status --wait || true
+
+COMPOSE_DIR="/data/coolify/source"
+ENV_FILE="${COMPOSE_DIR}/.env"
+SSH_KEY_PATH="/data/coolify/ssh/keys/id.root@host.docker.internal"
+
+echo "[onboot] Removing temporary SSH ForceCommand guard..."
+sed -e '/Match User root/d' \
+    -e '/.*ForceCommand.*instance.*/d' \
+    -i /etc/ssh/sshd_config
+systemctl restart ssh || systemctl restart sshd || true
+
+echo "[onboot] Ensuring Docker service is running..."
+systemctl enable --now docker || true
+sleep 3
+
+echo "[onboot] Enabling the UFW firewall..."
+ufw --force enable || true
+
+echo "[onboot] Ensuring the 'coolify' Docker network exists..."
+docker network create --attachable coolify 2>/dev/null || true
+
+# Detect this instance's primary public IP for display purposes.
+MYIP="$(curl -fsSL https://ifconfig.me 2>/dev/null || curl -fsSL https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}')"
+
+echo "[onboot] Generating a unique SSH key for Coolify localhost management..."
+# The key is generated but intentionally NOT added to authorized_keys yet.
+# The first-login wizard (coolify_localhost_setup.sh) activates it on demand.
+if [ ! -f "${SSH_KEY_PATH}" ]; then
+  ssh-keygen -f "${SSH_KEY_PATH}" -t ed25519 -N '' -C root@coolify -q
+  echo "[onboot] SSH key generated at ${SSH_KEY_PATH}"
+else
+  echo "[onboot] SSH key already exists, skipping generation."
+fi
+
+echo "[onboot] Rotating Coolify secrets so every instance is unique..."
+# IMPORTANT: These run only once, on the very first boot. Changing them later breaks the install.
+sed -i "s|APP_ID=.*|APP_ID=$(openssl rand -hex 16)|g"                          "${ENV_FILE}"
+sed -i "s|APP_KEY=.*|APP_KEY=base64:$(openssl rand -base64 32)|g"              "${ENV_FILE}"
+sed -i "s|DB_PASSWORD=.*|DB_PASSWORD=$(openssl rand -base64 32)|g"             "${ENV_FILE}"
+sed -i "s|REDIS_PASSWORD=.*|REDIS_PASSWORD=$(openssl rand -base64 32)|g"       "${ENV_FILE}"
+sed -i "s|PUSHER_APP_ID=.*|PUSHER_APP_ID=$(openssl rand -hex 32)|g"            "${ENV_FILE}"
+sed -i "s|PUSHER_APP_KEY=.*|PUSHER_APP_KEY=$(openssl rand -hex 32)|g"          "${ENV_FILE}"
+sed -i "s|PUSHER_APP_SECRET=.*|PUSHER_APP_SECRET=$(openssl rand -hex 32)|g"    "${ENV_FILE}"
+
+echo "[onboot] Reapplying ownership and permissions on /data/coolify..."
+chown -R 9999:root /data/coolify
+chmod -R 700 /data/coolify
+
+echo "[onboot] Starting Coolify for the first time (pulling images, may take a few minutes)..."
+cd "${COMPOSE_DIR}"
+attempt=1
+max_attempts=3
+until docker compose --env-file "${ENV_FILE}" \
+  -f "${COMPOSE_DIR}/docker-compose.yml" \
+  -f "${COMPOSE_DIR}/docker-compose.prod.yml" \
+  up -d --pull always --remove-orphans --force-recreate; do
+  if [ "$attempt" -ge "$max_attempts" ]; then
+    echo "[onboot] ERROR: Coolify failed to start after ${max_attempts} attempts. Check /opt/coolify-logs.sh."
+    break
+  fi
+  attempt=$((attempt + 1))
+  echo "[onboot] WARN: Retrying Coolify startup (attempt ${attempt}/${max_attempts}) in 15s..."
+  sleep 15
+done
+
+echo "[onboot] Waiting for Coolify to initialize..."
+sleep 30
+
+if docker ps --format '{{.Names}}' | grep -q 'coolify'; then
+  echo "[onboot] Coolify started successfully!"
+else
+  echo "[onboot] WARNING: Coolify may not have started correctly. Check with /opt/coolify-status.sh."
+fi
+
+echo "[onboot] Registering the first-login localhost activation wizard..."
+if ! grep -q '/opt/coolify_localhost_setup.sh' /root/.bashrc 2>/dev/null; then
+  cat >> /root/.bashrc <<'EOM'
+[ -x /opt/coolify_localhost_setup.sh ] && /opt/coolify_localhost_setup.sh
+EOM
+fi
+
+echo "[onboot] Writing access information to /root/coolify_info.txt..."
+cat > /root/coolify_info.txt <<EOF
+================================================================================
+Coolify Installation Complete
+================================================================================
+
+Access your Coolify instance at:
+  http://${MYIP}:8000
+
+IMPORTANT:
+- Create your admin account IMMEDIATELY after opening the URL above.
+- The first user to register gains full administrative access.
+- Run /opt/configure-coolify-localhost.sh to enable localhost deployments.
+
+Management Commands:
+  Start Coolify:    /opt/start-coolify.sh
+  Stop Coolify:     /opt/stop-coolify.sh
+  Restart Coolify:  /opt/restart-coolify.sh
+  Update Coolify:   /opt/update-coolify.sh
+  View logs:        /opt/coolify-logs.sh
+  Check status:     /opt/coolify-status.sh
+  Setup localhost:  /opt/configure-coolify-localhost.sh
+
+Configuration:
+  Main directory:    /data/coolify
+  Configuration:     /data/coolify/source/.env
+  Applications:      /data/coolify/applications
+  Databases:         /data/coolify/databases
+  Backups:           /data/coolify/backups
+
+Firewall Ports (UFW):
+  22   - SSH
+  80   - HTTP
+  443  - HTTPS
+  8000 - Coolify Web Interface
+  6001 - Coolify Realtime
+  6002 - Coolify Soketi
+
+For more information, visit: https://coolify.io/docs
+================================================================================
+EOF
+chmod 600 /root/coolify_info.txt
+
+echo "[onboot] Cleanup complete. Removing this script so it only runs once."
+rm -f /var/lib/cloud/scripts/per-instance/001_onboot
+
+echo "[onboot] Coolify first-boot initialization finished."

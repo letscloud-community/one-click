@@ -1,0 +1,21 @@
+[Unit]
+Description=RuneScape: Dragonwilds Dedicated Server
+Documentation=https://github.com/runescape/rsdw-dedicated
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+# Stays inert until the first boot wizard has produced a configuration.
+ConditionPathExists=/opt/dragonwilds/.env
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/dragonwilds
+ExecStart=/opt/dragonwilds/scripts/start.sh
+ExecStop=/opt/dragonwilds/scripts/stop.sh
+# The first start downloads roughly 5.5 GB through SteamCMD.
+TimeoutStartSec=0
+TimeoutStopSec=180
+
+[Install]
+WantedBy=multi-user.target

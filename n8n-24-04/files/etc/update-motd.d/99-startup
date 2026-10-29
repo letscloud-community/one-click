@@ -1,38 +1,54 @@
 #!/bin/bash
 
-# n8n Startup Message
-SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+# n8n startup message
+SERVER_URL=$(sed -n 's|^N8N_WEBHOOK_URL=||p' /opt/n8n/.env 2>/dev/null | tail -n1)
+if [ -z "$SERVER_URL" ]; then
+    SERVER_URL="http://$(hostname -I 2>/dev/null | awk '{print $1}')/"
+fi
+
 cat << EOF
 ===============================================
         n8n Automation Platform
 ===============================================
 
-n8n is now installed and configured!
-
-Access n8n at: http://$SERVER_IP/
+Access n8n at: ${SERVER_URL}
 First-time setup:
-  Complete the initial setup wizard to create your admin account
+  Complete the setup wizard to create your owner account.
+  n8n has no default login: the first account you create owns the instance.
 
-Database: PostgreSQL (configured)
-Reverse Proxy: nginx
+Stack (Docker Compose, /opt/n8n/docker-compose.yml):
+  - n8n            application
+  - postgres       database
+  - runners        isolated Code node execution (external task runners)
+  - nginx          reverse proxy on port 80 (host service)
 
-Service status:
-  - n8n: systemctl status n8n
-  - nginx: systemctl status nginx
-  - postgresql: systemctl status postgresql
+Configuration and secrets:
+  /opt/n8n/.env              instance settings (restart n8n after editing)
+  /root/.n8n_credentials     generated passwords and encryption key
 
-Troubleshooting:
-  - Check logs: journalctl -u n8n -f
-  - Restart services: systemctl restart n8n nginx
-  - Test nginx: nginx -t
+Service management:
+  systemctl status n8n
+  systemctl restart n8n
+  journalctl -u n8n -f
+  n8n-compose --env-file /opt/n8n/.env -f /opt/n8n/docker-compose.yml ps
+  n8n-compose --env-file /opt/n8n/.env -f /opt/n8n/docker-compose.yml logs -f n8n
 
-HTTPS (recommended):
-  1) Install Certbot and generate certificate for your domain
-     sudo apt-get install -y python3-certbot-nginx
+Upgrade n8n:
+  /opt/n8n/update.sh
+  Pin N8N_IMAGE_TAG in /opt/n8n/.env to avoid unplanned major upgrades.
+
+Use your own domain with HTTPS (recommended):
+  1) Point your domain's DNS A record at this server
+  2) sudo apt-get install -y python3-certbot-nginx
      sudo certbot --nginx -d your-domain.com
-  2) Enable secure cookie after HTTPS
-     sudo sed -i 's/^N8N_SECURE_COOKIE=.*/N8N_SECURE_COOKIE=true/' /home/n8n/.n8n/.env
-     sudo systemctl restart n8n nginx
+  3) sudo sed -i 's|^N8N_HOSTNAME=.*|N8N_HOSTNAME=your-domain.com|' /opt/n8n/.env
+     sudo sed -i 's|^N8N_PROTOCOL=.*|N8N_PROTOCOL=https|' /opt/n8n/.env
+     sudo sed -i 's|^N8N_WEBHOOK_URL=.*|N8N_WEBHOOK_URL=https://your-domain.com/|' /opt/n8n/.env
+     sudo sed -i 's|^N8N_SECURE_COOKIE=.*|N8N_SECURE_COOKIE=true|' /opt/n8n/.env
+     sudo systemctl restart n8n
+
+IMPORTANT: back up N8N_ENCRYPTION_KEY from /opt/n8n/.env. Without it, stored
+credentials cannot be decrypted and are permanently lost.
 
 Documentation: https://docs.n8n.io
 ===============================================

@@ -1,0 +1,100 @@
+#!/bin/bash
+#
+# MOTD for the RuneScape: Dragonwilds one-click image.
+# Shows the setup instructions until the first boot wizard has run, and the
+# connection details afterwards.
+
+ENV_FILE="/opt/dragonwilds/.env"
+MARKER="/var/lib/dragonwilds/first-boot.done"
+# Pick the first IPv4 address: the game port is published over IPv4 only, and
+# the MOTD must never block, so no network call is made here.
+SERVER_IP="$(hostname -I 2>/dev/null | tr ' ' '\n' | grep -E '^[0-9]+\.' | head -n1)"
+
+if [ ! -f "${MARKER}" ] || [ ! -f "${ENV_FILE}" ]; then
+  cat <<EOF
+================================================================================
+ RuneScape: Dragonwilds Dedicated Server  -  setup required
+--------------------------------------------------------------------------------
+Docker, the official Jagex server image and every management script are already
+installed. One value is still missing: your Owner ID.
+
+ 1. Launch RuneScape: Dragonwilds.
+ 2. Open the Settings menu and scroll to the bottom.
+ 3. Copy the Player ID shown there.
+ 4. Run:
+
+      /opt/dragonwilds/scripts/first-boot.sh
+
+    or, without prompts:
+
+      /opt/dragonwilds/scripts/first-boot.sh --owner-id <YOUR_ID> --non-interactive
+
+The server will not start without an Owner ID. The first start downloads about
+5.5 GB through SteamCMD, so allow a few minutes before the world appears in
+the browser.
+
+ Docs: https://dragonwilds.runescape.com/news/how-to-dedicated-servers
+================================================================================
+EOF
+  exit 0
+fi
+
+# shellcheck disable=SC1090
+WORLD_NAME="$(sed -n 's/^RSDW_WORLD_NAME=//p' "${ENV_FILE}" 2>/dev/null | tail -n1)"
+PORT="$(sed -n 's/^RSDW_PORT=//p' "${ENV_FILE}" 2>/dev/null | tail -n1)"
+PORT="${PORT:-7777}"
+BEACON_PORT="$(sed -n 's/^RSDW_BEACON_PORT=//p' "${ENV_FILE}" 2>/dev/null | tail -n1)"
+BEACON_PORT="${BEACON_PORT:-8888}"
+
+if docker inspect -f '{{.State.Running}}' dragonwilds 2>/dev/null | grep -q true; then
+  STATE="running"
+else
+  STATE="STOPPED  (start it with /opt/dragonwilds/scripts/start.sh)"
+fi
+
+# The join code lets players skip the browser search. It only exists in the
+# container log, so the read is bounded by timeout: the MOTD runs on every login
+# and must never hang, no matter how large the log has grown.
+JOIN_CODE="$(timeout 3 docker logs dragonwilds 2>&1 \
+  | sed -n 's/.*"JoinCode"\] written with key\[xz\] value\[\([A-Z0-9-]\{1,\}\)\].*/\1/p' \
+  | tail -n1)"
+JOIN_LINE=" Join code    ${JOIN_CODE:-not published yet (see status.sh)}"
+
+UPDATE_LINE=""
+if [ -f /var/lib/dragonwilds/update-pending ]; then
+  UPDATE_LINE="
+ !! A game update is pending. Apply it with:
+      /opt/dragonwilds/scripts/update.sh --now
+"
+fi
+
+cat <<EOF
+================================================================================
+ RuneScape: Dragonwilds Dedicated Server
+--------------------------------------------------------------------------------
+ Status       ${STATE}
+ World name   ${WORLD_NAME:-<unset>}   (search for this exactly, case sensitive)
+${JOIN_LINE}
+ Address      ${SERVER_IP:-your-ip}:${PORT}/udp
+${UPDATE_LINE}
+ Management
+   /opt/dragonwilds/scripts/status.sh     Status and connection details
+   /opt/dragonwilds/scripts/logs.sh       Follow the live logs
+   /opt/dragonwilds/scripts/restart.sh    Apply changes made to .env
+   /opt/dragonwilds/scripts/backup.sh     Back up the worlds now
+   /opt/dragonwilds/scripts/restore.sh    Restore a world from a backup
+   /opt/dragonwilds/scripts/update.sh     Check for and apply game updates
+
+ Locations
+   Configuration  /opt/dragonwilds/.env          (root only, mode 600)
+   Worlds         /opt/dragonwilds/data/RSDragonwilds/Saved/SaveGames
+   Backups        /opt/dragonwilds/backups       (24 hourly, 7 daily, 4 weekly)
+   Script logs    /var/log/dragonwilds/
+
+ Credentials and connection summary: /root/dragonwilds_info.txt
+
+ Firewall (ufw)   22/tcp SSH, ${PORT}/udp game, ${BEACON_PORT}/udp beacon
+ Docs             https://dragonwilds.runescape.com/news/how-to-dedicated-servers
+================================================================================
+To remove this message: rm -f /etc/update-motd.d/99-startup
+EOF

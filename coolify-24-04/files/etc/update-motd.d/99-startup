@@ -1,0 +1,41 @@
+#!/bin/bash
+
+SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+
+cat <<EOF
+===============================================================================
+ 🚀 Coolify self-hosted PaaS is ready!
+--------------------------------------------------------------------------------
+Coolify is an open-source, self-hostable alternative to Heroku, Netlify and
+Vercel. Deploy applications, databases and services from a single dashboard.
+
+🌐 Web interface: http://${SERVER_IP:-your-ip}:8000
+
+⚠️  IMPORTANT FIRST STEPS
+  1. Open http://${SERVER_IP:-your-ip}:8000 in your browser.
+  2. Create your admin account IMMEDIATELY (the first user gets full access).
+  3. Activate localhost deploys: /opt/configure-coolify-localhost.sh
+
+🛠 Management commands
+  - /opt/start-coolify.sh      # Start Coolify containers
+  - /opt/stop-coolify.sh       # Stop Coolify containers
+  - /opt/restart-coolify.sh    # Restart Coolify containers
+  - /opt/update-coolify.sh     # Update to the latest version
+  - /opt/coolify-logs.sh       # Follow real-time logs
+  - /opt/coolify-status.sh     # Check container status
+  - docker ps                  # Inspect running containers
+
+📁 Locations
+  - Config:        /data/coolify/source/.env
+  - Applications:  /data/coolify/applications
+  - Databases:     /data/coolify/databases
+  - Backups:       /data/coolify/backups
+
+🔐 Firewall (ufw) open ports
+  - 22 (SSH), 80 (HTTP), 443 (HTTPS)
+  - 8000 (Dashboard), 6001 (Realtime), 6002 (Soketi)
+
+📚 Docs: https://coolify.io/docs   |   Community: https://coolify.io/discord
+================================================================================
+To remove this message: rm -f /etc/update-motd.d/99-startup
+EOF

@@ -1,0 +1,92 @@
+#!/bin/bash
+#
+# First boot of a RuneScape: Dragonwilds instance.
+#
+# Prepares the host and then either runs the setup wizard automatically (when
+# an Owner ID was supplied through cloud-init user-data) or arms it to greet
+# the operator on their first SSH login.
+#
+# cloud-init runs per-instance scripts exactly once, and this script removes
+# itself at the end as a second guard.
+
+set -euo pipefail
+exec > >(tee -a /var/log/dragonwilds-onboot.log) 2>&1
+
+echo "[onboot] Waiting for cloud-init to finish..."
+cloud-init status --wait || true
+
+DW_DIR="/opt/dragonwilds"
+STATE_DIR="/var/lib/dragonwilds"
+mkdir -p "${STATE_DIR}" /var/log/dragonwilds
+chmod 0750 "${STATE_DIR}" /var/log/dragonwilds
+
+echo "[onboot] Removing the temporary SSH ForceCommand guard..."
+sed -e '/Match User root/d' \
+    -e '/.*ForceCommand.*instance.*/d' \
+    -i /etc/ssh/sshd_config
+systemctl restart ssh || systemctl restart sshd || true
+
+echo "[onboot] Ensuring Docker is running..."
+systemctl enable --now docker || true
+for _ in $(seq 1 30); do
+  docker info >/dev/null 2>&1 && break
+  sleep 2
+done
+
+echo "[onboot] Recreating the directory tree..."
+mkdir -p "${DW_DIR}/data"
+mkdir -p "${DW_DIR}/backups"/{hourly,daily,weekly,manual,pre-update,pre-restore}
+chown -R 1000:1000 "${DW_DIR}/data"
+chmod 0750 "${DW_DIR}/data"
+chmod 0700 "${DW_DIR}/backups"
+
+echo "[onboot] Applying the firewall policy (22/tcp, 7777/udp and 8888/udp only)..."
+# firewall.sh refuses to enable UFW unless the SSH rule is confirmed, so a
+# problem here can never leave the instance unreachable.
+if ! "${DW_DIR}/scripts/firewall.sh"; then
+  echo "[onboot] WARNING: the firewall was NOT enabled; see the output above."
+fi
+
+echo "[onboot] Looking for an Owner ID supplied at provisioning time..."
+OWNER_ID=""
+
+# 1. A file dropped by the provisioning platform.
+if [ -f /etc/dragonwilds/owner-id ]; then
+  OWNER_ID="$(tr -d '[:space:]' < /etc/dragonwilds/owner-id)"
+fi
+
+# 2. A DW_OWNER_ID=... or dragonwilds_owner_id: ... line in cloud-init user-data.
+if [ -z "${OWNER_ID}" ]; then
+  for ud in /var/lib/cloud/instance/user-data.txt /var/lib/cloud/instance/user-data.txt.i; do
+    [ -f "${ud}" ] || continue
+    OWNER_ID="$(grep -aoE '(DW_OWNER_ID=|dragonwilds_owner_id:[[:space:]]*)[0-9a-zA-Z]{16,64}' "${ud}" 2>/dev/null \
+      | head -n1 | grep -oE '[0-9a-zA-Z]{16,64}$' || true)"
+    [ -n "${OWNER_ID}" ] && break
+  done
+fi
+
+# The wizard itself is armed by /etc/profile.d/dragonwilds-first-boot.sh, which
+# ships inside the image. Nothing needs to be appended to /root/.bashrc here:
+# doing that made the prompt depend on this script finishing successfully, and
+# a single failure left the customer with no wizard at all.
+if [ -n "${OWNER_ID}" ]; then
+  echo "[onboot] Owner ID found; running the setup non-interactively."
+  if "${DW_DIR}/scripts/first-boot.sh" --owner-id "${OWNER_ID}" --non-interactive; then
+    echo "[onboot] Server configured and started."
+  else
+    echo "[onboot] WARNING: automatic setup failed. The wizard will be offered on the next SSH login."
+  fi
+else
+  echo "[onboot] No Owner ID available; the wizard will run on the first SSH login."
+fi
+
+echo "[onboot] Enabling the backup and update timers..."
+systemctl daemon-reload || true
+systemctl enable --now dragonwilds-backup.timer || true
+systemctl enable --now dragonwilds-update.timer || true
+systemctl enable dragonwilds.service || true
+
+echo "[onboot] Removing this script so it never runs again."
+rm -f /var/lib/cloud/scripts/per-instance/001_onboot
+
+echo "[onboot] First boot finished."

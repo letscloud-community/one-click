@@ -1,0 +1,34 @@
+#!/bin/bash
+
+# aaPanel Startup Message
+SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+cat << EOF
+===============================================
+        aaPanel Control Panel
+===============================================
+
+aaPanel 7.0.26 is now installed and configured!
+
+Access aaPanel at: http://$SERVER_IP:8888
+Default credentials:
+  Username: admin
+  Password: (run 'bt default' to see password)
+
+Management Commands:
+  - bt                    - aaPanel management tool
+  - bt default           - Show default login info
+  - bt restart           - Restart aaPanel
+  - aapanel-manage status - Check all services status
+
+Services included:
+  - aaPanel Control Panel
+  - Nginx Web Server
+  - MySQL Database
+  - PHP (multiple versions)
+  - FTP Server
+  - Redis Cache
+  - Memcached
+
+Documentation: https://www.aapanel.com
+===============================================
+EOF

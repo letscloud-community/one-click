@@ -1,0 +1,92 @@
+# RuneScape: Dragonwilds Dedicated Server
+#
+# Uses the official image published by Jagex:
+#   https://github.com/runescape/rsdw-dedicated
+#   ghcr.io/runescape/rsdw-dedicated
+#
+# Every value comes from /opt/dragonwilds/.env, which is generated on the first
+# boot by /opt/dragonwilds/scripts/first-boot.sh. Do not hardcode secrets here.
+
+services:
+  dragonwilds:
+    image: ghcr.io/runescape/rsdw-dedicated:${DW_IMAGE_TAG:-latest}
+    container_name: dragonwilds
+    hostname: dragonwilds
+
+    # The official entrypoint runs SteamCMD `app_update` on every start, so a
+    # restart is also the supported way to apply a game update.
+    restart: unless-stopped
+
+    # The server flushes its world to disk while shutting down. Give it plenty
+    # of time before Docker escalates SIGTERM to SIGKILL, otherwise a save can
+    # be truncated.
+    stop_grace_period: 120s
+
+    # Two UDP ports, and nothing else. Host and container port must match.
+    #
+    # The beacon port is NOT optional: the Worlds browser advertises the server
+    # through it, so without it the world is listed and every join attempt ends
+    # in "connection lost". The upstream image exposes 7777/udp and 8888/udp
+    # for exactly this reason.
+    ports:
+      - "${RSDW_PORT:-7777}:${RSDW_PORT:-7777}/udp"
+      - "${RSDW_BEACON_PORT:-8888}:${RSDW_BEACON_PORT:-8888}/udp"
+
+    environment:
+      # --- Mandatory -------------------------------------------------------
+      # EOS Online ID of the server owner. The server refuses to start without
+      # it. Found in-game at the bottom of the Settings menu.
+      RSDW_OWNER_ID: "${RSDW_OWNER_ID}"
+
+      # --- Identity --------------------------------------------------------
+      # RSDW_WORLD_NAME is what players type in the Worlds browser search box.
+      # It is exact-match and case sensitive.
+      RSDW_SERVER_NAME: "${RSDW_SERVER_NAME}"
+      RSDW_WORLD_NAME: "${RSDW_WORLD_NAME}"
+      RSDW_PORT: "${RSDW_PORT:-7777}"
+      # Passed to the server as -BeaconPort. Keep it in sync with the published
+      # port above, otherwise the server advertises a port nothing listens on.
+      RSDW_BEACON_PORT: "${RSDW_BEACON_PORT:-8888}"
+
+      # --- Access control --------------------------------------------------
+      # These MUST be set explicitly. The image treats the literal value
+      # "random" as "generate a new one on every container start", which would
+      # silently change the password each time the server restarts.
+      RSDW_PASSWORD: "${RSDW_PASSWORD}"
+      RSDW_ADMIN_PASSWORD: "${RSDW_ADMIN_PASSWORD}"
+      RSDW_ADMINS: "${RSDW_ADMINS}"
+
+      # --- Update behaviour ------------------------------------------------
+      # Left as false on purpose: true makes the container exit as soon as
+      # Steam advertises a new build, which would kick players mid-session.
+      # Controlled updates are handled by dragonwilds-update.timer instead.
+      RSDW_AUTO_STOP_ON_UPDATE: "${RSDW_AUTO_STOP_ON_UPDATE:-false}"
+
+      # --- Advanced --------------------------------------------------------
+      RSDW_ADDITIONAL_ARGS: "${RSDW_ADDITIONAL_ARGS}"
+      RSDW_LINE_BUFFERED_LOGS: "${RSDW_LINE_BUFFERED_LOGS:-true}"
+      STEAMAPPVALIDATE: "${STEAMAPPVALIDATE:-0}"
+      DEBUG: "${DEBUG:-0}"
+
+    volumes:
+      # The image installs the game into STEAMAPPDIR and keeps the world saves,
+      # the generated DedicatedServer.ini and the logs underneath it:
+      #   RSDragonwilds/Saved/SaveGames            world .sav files
+      #   RSDragonwilds/Saved/Config/LinuxServer/  DedicatedServer.ini
+      #   RSDragonwilds/Saved/Logs/                RSDragonwilds.log
+      # Binding the whole directory keeps the ~5.5 GB install across restarts so
+      # SteamCMD only downloads deltas.
+      - ./data:/home/steam/rsdw-dedicated
+
+    # The image already drops to uid/gid 1000 and needs no elevated rights.
+    user: "1000:1000"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

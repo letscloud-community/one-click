@@ -1,0 +1,18 @@
+[Unit]
+Description=n8n automation platform (Docker Compose)
+Documentation=https://docs.n8n.io
+After=network-online.target docker.service n8n-init.service
+Wants=network-online.target n8n-init.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/n8n
+ExecStart=/usr/local/bin/n8n-compose --env-file /opt/n8n/.env -f /opt/n8n/docker-compose.yml up -d --remove-orphans
+ExecStop=/usr/local/bin/n8n-compose --env-file /opt/n8n/.env -f /opt/n8n/docker-compose.yml down
+ExecReload=/usr/local/bin/n8n-compose --env-file /opt/n8n/.env -f /opt/n8n/docker-compose.yml up -d --remove-orphans
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target
