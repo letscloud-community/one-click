@@ -1,111 +1,111 @@
 # Coolify One-Click (Ubuntu 24.04)
 
-Imagem One-Click do [Coolify](https://coolify.io), a plataforma open-source
-self-hosted para deploy de aplicações, bancos de dados e serviços (alternativa a
-Heroku, Netlify e Vercel).
+One-Click image for [Coolify](https://coolify.io), the open-source self-hosted
+platform for deploying applications, databases and services (an alternative to
+Heroku, Netlify and Vercel).
 
-A imagem é construída com Packer sobre Ubuntu 24.04 LTS e segue o modelo faseado:
-prepara tudo durante o build e finaliza a instalação no primeiro boot, gerando
-segredos únicos por instância.
+The image is built with Packer on top of Ubuntu 24.04 LTS and follows the phased
+model: everything is prepared during the build, and the installation is finished
+on first boot, generating secrets that are unique per instance.
 
-## O que a imagem inclui
+## What the image includes
 
-- Docker Engine (instalação oficial) com limites de log configurados
-- Estrutura completa do Coolify em `/data/coolify`
-- Arquivos de configuração baixados do CDN oficial da Coolify
-- Firewall UFW pré-configurado (22, 80, 443, 8000, 6001, 6002)
-- Serviço systemd `coolify.service` (auto-start no boot)
-- Scripts de gerenciamento em `/opt`
-- Wizard interativo de ativação de localhost no primeiro login SSH
-- MOTD com instruções de acesso
+- Docker Engine (official installation) with log limits configured
+- Full Coolify directory structure under `/data/coolify`
+- Configuration files downloaded from Coolify's official CDN
+- Pre-configured UFW firewall (22, 80, 443, 8000, 6001, 6002)
+- `coolify.service` systemd unit (auto-start on boot)
+- Management scripts under `/opt`
+- Interactive localhost activation wizard on the first SSH login
+- MOTD with access instructions
 
-## Estrutura
+## Structure
 
 ```
 coolify-24-04/
-├── coolify-24-04.pkr.hcl                 # Configuração do build Packer
-├── README.md                             # Este arquivo
+├── coolify-24-04.pkr.hcl                 # Packer build configuration
+├── README.md                             # This file
 ├── scripts/
-│   └── 011-coolify.sh                    # Preparação em tempo de build
+│   └── 011-coolify.sh                    # Build-time preparation
 └── files/
     ├── etc/
     │   ├── systemd/system/
-    │   │   └── coolify.service           # Unit systemd
+    │   │   └── coolify.service           # systemd unit
     │   └── update-motd.d/
     │       └── 99-startup                # Message of the Day
     ├── opt/
-    │   ├── start-coolify.sh              # Inicia os containers
-    │   ├── stop-coolify.sh               # Para os containers
-    │   ├── restart-coolify.sh            # Reinicia os containers
-    │   ├── update-coolify.sh             # Atualiza para a última versão
-    │   ├── coolify-logs.sh               # Logs em tempo real
-    │   ├── coolify-status.sh             # Status dos containers
-    │   ├── coolify_localhost_setup.sh    # Wizard interativo (1º login)
-    │   └── configure-coolify-localhost.sh # Ativação não-interativa de localhost
+    │   ├── start-coolify.sh              # Start the containers
+    │   ├── stop-coolify.sh               # Stop the containers
+    │   ├── restart-coolify.sh            # Restart the containers
+    │   ├── update-coolify.sh             # Update to the latest version
+    │   ├── coolify-logs.sh               # Live logs
+    │   ├── coolify-status.sh             # Container status
+    │   ├── coolify_localhost_setup.sh    # Interactive wizard (1st login)
+    │   └── configure-coolify-localhost.sh # Non-interactive localhost activation
     └── var/
         └── lib/cloud/scripts/per-instance/
-            └── 001_onboot                # Inicialização no primeiro boot
+            └── 001_onboot                # First-boot initialization
 ```
 
-## Fases da instalação
+## Installation phases
 
-**1. Build (`scripts/011-coolify.sh`)** — prepara, mas não inicia:
-- Atualiza o sistema e instala dependências (curl, git, jq, openssl, ufw, etc.)
-- Instala o Docker Engine oficial e configura `daemon.json`
-- Cria `/data/coolify/{source,ssh,applications,databases,backups,services,proxy,...}`
-- Baixa `docker-compose.yml`, `docker-compose.prod.yml`, `.env.production` e `upgrade.sh` do CDN
-- Pré-configura o UFW, cria a rede Docker `coolify` e habilita o serviço systemd
+**1. Build (`scripts/011-coolify.sh`)**, prepares but does not start:
+- Updates the system and installs dependencies (curl, git, jq, openssl, ufw, etc.)
+- Installs the official Docker Engine and configures `daemon.json`
+- Creates `/data/coolify/{source,ssh,applications,databases,backups,services,proxy,...}`
+- Downloads `docker-compose.yml`, `docker-compose.prod.yml`, `.env.production` and `upgrade.sh` from the CDN
+- Pre-configures UFW, creates the `coolify` Docker network and enables the systemd service
 
-**2. Primeiro boot (`001_onboot`)** — finaliza e sobe:
-- Remove o `ForceCommand` de SSH e ativa o UFW
-- Gera uma chave SSH ed25519 única (sem adicionar ao `authorized_keys`)
-- **Rotaciona segredos por instância** (`APP_ID`, `APP_KEY`, `DB_PASSWORD`,
-  `REDIS_PASSWORD`, `PUSHER_*`) via `openssl`
-- Sobe os containers com `docker compose up -d`
-- Grava `/root/coolify_info.txt` e registra o wizard de localhost no `.bashrc`
+**2. First boot (`001_onboot`)**, finishes and starts:
+- Removes the SSH `ForceCommand` and enables UFW
+- Generates a unique ed25519 SSH key (without adding it to `authorized_keys`)
+- **Rotates per-instance secrets** (`APP_ID`, `APP_KEY`, `DB_PASSWORD`,
+  `REDIS_PASSWORD`, `PUSHER_*`) with `openssl`
+- Starts the containers with `docker compose up -d`
+- Writes `/root/coolify_info.txt` and registers the localhost wizard in `.bashrc`
 
-**3. Primeiro login SSH (`coolify_localhost_setup.sh`)**:
-- Pergunta se deseja ativar o servidor localhost para deploys
-- Se sim, adiciona a chave ao `authorized_keys` e reinicia o Coolify
-- Executa apenas uma vez
+**3. First SSH login (`coolify_localhost_setup.sh`)**:
+- Asks whether to enable the localhost server for deployments
+- If yes, adds the key to `authorized_keys` and restarts Coolify
+- Runs only once
 
-## Como construir
+## How to build
 
 ```bash
 packer init coolify-24-04.pkr.hcl
-packer validate -var "api_key=SEU_TOKEN" coolify-24-04.pkr.hcl
-packer build   -var "api_key=SEU_TOKEN" coolify-24-04.pkr.hcl
+packer validate -var "api_key=YOUR_TOKEN" coolify-24-04.pkr.hcl
+packer build   -var "api_key=YOUR_TOKEN" coolify-24-04.pkr.hcl
 ```
 
-## Como usar após o deploy
+## How to use after deployment
 
-1. Crie uma instância a partir do snapshot (mínimo 2 vCPU / 2 GB RAM / 30 GB).
-2. Aguarde de 3 a 5 minutos para o primeiro boot concluir.
-3. Acesse `http://SEU_IP:8000` e **crie o admin imediatamente**.
-4. (Opcional) Ative o localhost via SSH: o wizard aparece no primeiro login, ou
-   rode `/opt/configure-coolify-localhost.sh`.
+1. Create an instance from the snapshot (minimum 2 vCPU / 2 GB RAM / 30 GB).
+2. Wait 3 to 5 minutes for the first boot to complete.
+3. Open `http://YOUR_IP:8000` and **create the admin account immediately**.
+4. (Optional) Enable localhost over SSH: the wizard appears on the first login,
+   or run `/opt/configure-coolify-localhost.sh`.
 
-## Portas do firewall
+## Firewall ports
 
-| Porta | Serviço | Descrição |
-|-------|---------|-----------|
-| 22 | SSH | Acesso remoto |
-| 80 | HTTP | Tráfego web / Let's Encrypt |
-| 443 | HTTPS | Tráfego web seguro |
-| 8000 | Coolify UI | Interface web |
-| 6001 | Realtime | Atualizações em tempo real |
-| 6002 | Soketi | Servidor WebSocket |
+| Port | Service | Description |
+|------|---------|-------------|
+| 22 | SSH | Remote access |
+| 80 | HTTP | Web traffic / Let's Encrypt |
+| 443 | HTTPS | Secure web traffic |
+| 8000 | Coolify UI | Web interface |
+| 6001 | Realtime | Real-time updates |
+| 6002 | Soketi | WebSocket server |
 
-## Requisitos mínimos
+## Minimum requirements
 
 - CPU: 2 cores
 - RAM: 2 GB
-- Disco: 30 GB
+- Disk: 30 GB
 
-Para produção com múltiplas aplicações, recomenda-se 4+ cores, 8+ GB de RAM e
-100+ GB de disco.
+For production with multiple applications, 4+ cores, 8+ GB of RAM and 100+ GB of
+disk are recommended.
 
-## Atualização
+## Updating
 
 ```bash
 /opt/update-coolify.sh
@@ -113,6 +113,6 @@ Para produção com múltiplas aplicações, recomenda-se 4+ cores, 8+ GB de RAM
 
 ## Links
 
-- Documentação: https://coolify.io/docs
+- Documentation: https://coolify.io/docs
 - GitHub: https://github.com/coollabsio/coolify
-- Comunidade: https://coolify.io/discord
+- Community: https://coolify.io/discord

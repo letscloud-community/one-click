@@ -1,187 +1,187 @@
 # Hermes Agent One-Click (Ubuntu 26.04)
 
-Imagem one-click da LetsCloud com o [Hermes Agent](https://hermes-agent.nousresearch.com)
-da Nous Research pré-instalado, pronto para configurar o provedor de LLM no
-primeiro login.
+LetsCloud one-click image with Nous Research's
+[Hermes Agent](https://hermes-agent.nousresearch.com) pre-installed, ready for
+the LLM provider to be configured on the first login.
 
-O instalador oficial é executado durante o build, de modo que a instância sobe
-com todas as dependências já resolvidas (runtime Python fixado via `uv`,
-Node.js e o checkout do agente).
+The official installer runs during the build, so the instance comes up with every
+dependency already resolved (a Python runtime pinned through `uv`, Node.js and
+the agent checkout).
 
-## O que a imagem inclui
+## What the image includes
 
-- Hermes Agent instalado a partir do instalador oficial (canal `stable`)
-- Dependências de build: `ca-certificates`, `curl`, `git`, `gnupg`,
+- Hermes Agent installed from the official installer (`stable` channel)
+- Build dependencies: `ca-certificates`, `curl`, `git`, `gnupg`,
   `lsb-release`, `sudo`, `software-properties-common`
-- Symlink `/usr/local/bin/hermes` para uso em qualquer shell e pelo cloud-init
-- MOTD com instruções de primeiros passos
-- Assistente `hermes setup --portal` disparado no primeiro login
-- Unidade systemd de primeiro boot que valida o launcher
+- A `/usr/local/bin/hermes` symlink usable from any shell and from cloud-init
+- MOTD with getting-started instructions
+- The `hermes setup --portal` wizard triggered on the first login
+- A first-boot systemd unit that validates the launcher
 
-## Estrutura
+## Structure
 
 ```text
 hermes-26-04/
-├── hermes-26-04.pkr.hcl                 Template Packer
+├── hermes-26-04.pkr.hcl                 Packer template
 ├── scripts/
-│   ├── 011-hermes.sh                    Instalação do Hermes Agent
-│   └── 900-cleanup.sh                   Limpeza antes do snapshot
+│   ├── 011-hermes.sh                    Hermes Agent installation
+│   └── 900-cleanup.sh                   Cleanup before the snapshot
 └── files/
     ├── etc/profile.d/hermes-first-login.sh
-    │                                     Dispara o assistente no 1º login
+    │                                     Triggers the wizard on the 1st login
     ├── etc/systemd/system/hermes-firstboot.service
-    │                                     Preparação por instância
-    ├── etc/update-motd.d/99-startup     Mensagem de boas-vindas
-    ├── opt/hermes/first-boot.sh         Trabalho de primeiro boot
-    └── opt/hermes/first-login.sh        Assistente de configuração
+    │                                     Per-instance preparation
+    ├── etc/update-motd.d/99-startup     Welcome message
+    ├── opt/hermes/first-boot.sh         First-boot work
+    └── opt/hermes/first-login.sh        Configuration wizard
 ```
 
-## Particularidades do Ubuntu 26.04 na LetsCloud
+## Ubuntu 26.04 specifics on LetsCloud
 
-A imagem base `ubuntu-26.04-x86_64` **não traz cloud-init**. Durante o build o
-Packer registra `cloud-init not found; continuing`. Duas consequências moldaram
-o desenho desta imagem:
+The `ubuntu-26.04-x86_64` base image **does not ship cloud-init**. During the
+build, Packer logs `cloud-init not found; continuing`. Two consequences shaped
+the design of this image:
 
-**1. Não existe hook `per-instance`.** O
-`/var/lib/cloud/scripts/per-instance/001_onboot` usado pelas demais imagens
-nunca executaria. O trabalho por instância foi movido para a unidade
-[hermes-firstboot.service](./files/etc/systemd/system/hermes-firstboot.service),
-que roda o [first-boot.sh](./files/opt/hermes/first-boot.sh) uma única vez,
-protegida pelo marcador `/var/lib/hermes/first-boot.done`.
+**1. There is no `per-instance` hook.** The
+`/var/lib/cloud/scripts/per-instance/001_onboot` file used by the other images
+would never run. Per-instance work was moved to the
+[hermes-firstboot.service](./files/etc/systemd/system/hermes-firstboot.service)
+unit, which runs [first-boot.sh](./files/opt/hermes/first-boot.sh) exactly once,
+guarded by the `/var/lib/hermes/first-boot.done` marker.
 
-**2. O `018-force-ssh.sh` não pode ser usado.** O script compartilhado
-acrescenta um bloco `Match User root` com `ForceCommand` ao `sshd_config`, e
-todas as outras imagens o removem no `001_onboot`. Sem cloud-init nada o
-removeria, e **o root ficaria permanentemente trancado fora do VPS**. Como aqui
-não há nada a esperar no primeiro boot — o agente é instalado por inteiro no
-build —, o guard foi simplesmente retirado da lista de scripts do
+**2. `018-force-ssh.sh` cannot be used.** The shared script appends a
+`Match User root` block with `ForceCommand` to `sshd_config`, and every other
+image removes it in `001_onboot`. Without cloud-init nothing would remove it,
+and **root would be permanently locked out of the VPS**. Since there is nothing
+to wait for on first boot here, because the agent is installed in full during
+the build, the guard was simply dropped from the script list in the
 [template](./hermes-26-04.pkr.hcl).
 
-## Configuração automática no primeiro login
+## Automatic configuration on the first login
 
-O agente não faz nada útil enquanto um provedor de LLM não for configurado, e
-essa etapa exige terminal — logo, não pode rodar nem durante o build nem no
-cloud-init. Por isso o [hermes-first-login.sh](./files/etc/profile.d/hermes-first-login.sh)
-é lido por `/etc/profile` em todo shell de login e executa o
-[first-login.sh](./files/opt/hermes/first-login.sh), que chama
-`hermes setup --portal` logo após o MOTD.
+The agent does nothing useful until an LLM provider is configured, and that step
+requires a terminal, so it can run neither during the build nor from cloud-init.
+That is why [hermes-first-login.sh](./files/etc/profile.d/hermes-first-login.sh)
+is sourced by `/etc/profile` in every login shell and runs
+[first-login.sh](./files/opt/hermes/first-login.sh), which calls
+`hermes setup --portal` right after the MOTD.
 
-O assistente só é disparado quando todas estas condições são verdadeiras:
+The wizard is only triggered when all of these conditions hold:
 
-| Condição | Motivo |
+| Condition | Reason |
 | --- | --- |
-| Shell interativo com TTY | O assistente é interativo |
-| `id -u` = `0` | A instalação vive em `/root` |
-| `/var/lib/hermes/first-login.done` não existe | Já foi concluído |
-| `HERMES_SKIP_FIRST_LOGIN` vazio | Escape manual |
+| Interactive shell with a TTY | The wizard is interactive |
+| `id -u` = `0` | The installation lives in `/root` |
+| `/var/lib/hermes/first-login.done` does not exist | It has already been completed |
+| `HERMES_SKIP_FIRST_LOGIN` empty | Manual escape hatch |
 
-O marcador `/var/lib/hermes/first-login.done` é criado **apenas** quando o
-`hermes setup --portal` termina com sucesso: um `Ctrl+C` ou uma falha deixa o
-agente inutilizável, então o assistente é oferecido novamente no próximo login.
-O [900-cleanup.sh](./scripts/900-cleanup.sh) e o
-[first-boot.sh](./files/opt/hermes/first-boot.sh) removem o marcador para que
-ele nunca seja herdado pelo snapshot.
+The `/var/lib/hermes/first-login.done` marker is created **only** when
+`hermes setup --portal` finishes successfully: a `Ctrl+C` or a failure leaves the
+agent unusable, so the wizard is offered again on the next login.
+[900-cleanup.sh](./scripts/900-cleanup.sh) and
+[first-boot.sh](./files/opt/hermes/first-boot.sh) remove the marker so it is
+never inherited by the snapshot.
 
-Para pular:
+To skip it:
 
 ```bash
-HERMES_SKIP_FIRST_LOGIN=1 ssh root@IP    # apenas nesta sessão
-touch /var/lib/hermes/first-login.done   # definitivamente
+HERMES_SKIP_FIRST_LOGIN=1 ssh root@IP    # this session only
+touch /var/lib/hermes/first-login.done   # permanently
 ```
 
-## Onde o Hermes fica instalado
+## Where Hermes is installed
 
-O instalador oficial **não** é system-wide: ele descompacta em
-`$HERMES_HOME/hermes-agent` e publica o launcher em `~/.local/bin`, colocando
-esse diretório no `PATH` apenas via `~/.bashrc` e `~/.profile`.
+The official installer is **not** system-wide: it unpacks into
+`$HERMES_HOME/hermes-agent` and publishes the launcher in `~/.local/bin`, adding
+that directory to `PATH` only through `~/.bashrc` and `~/.profile`.
 
-Como nem o shell não-interativo do Packer nem o cloud-init leem esses arquivos,
-o [011-hermes.sh](./scripts/011-hermes.sh) resolve o launcher pelo caminho
-absoluto e cria o symlink:
+Since neither Packer's non-interactive shell nor cloud-init reads those files,
+[011-hermes.sh](./scripts/011-hermes.sh) resolves the launcher by absolute path
+and creates the symlink:
 
-| Caminho | Conteúdo |
+| Path | Contents |
 | --- | --- |
-| `/root/.hermes/hermes-agent` | Checkout e runtime do agente |
-| `/root/.hermes/config.yaml` | Configuração do agente |
-| `/usr/local/bin/hermes` | Symlink usado por shells e cloud-init |
-| `/opt/hermes/README` | Notas de instalação na própria instância |
+| `/root/.hermes/hermes-agent` | Agent checkout and runtime |
+| `/root/.hermes/config.yaml` | Agent configuration |
+| `/usr/local/bin/hermes` | Symlink used by shells and cloud-init |
+| `/opt/hermes/README` | Installation notes on the instance itself |
 
-Como a instalação vive em `/root`, **o Hermes deve ser executado como root**.
-Para liberar outro usuário, reinstale sob o `HOME` dele.
+Because the installation lives in `/root`, **Hermes must be run as root**. To
+enable another user, reinstall under that user's `HOME`.
 
-## Como construir
+## How to build
 
 ```bash
-./build.sh hermes-26-04                  # build completo
-./build.sh hermes-26-04 --validate-only  # apenas valida o template
+./build.sh hermes-26-04                  # full build
+./build.sh hermes-26-04 --validate-only  # validate the template only
 ```
 
-O [build.sh](../build.sh) lê o token da API de `~/.letscloud_token` (permissão
-`600`). Nunca coloque o token em arquivos dentro do repositório.
+[build.sh](../build.sh) reads the API token from `~/.letscloud_token` (mode
+`600`). Never place the token in files inside the repository.
 
-Parâmetros do build:
+Build parameters:
 
-| Parâmetro | Valor |
+| Parameter | Value |
 | --- | --- |
 | `location_slug` | `sao2` |
 | `plan_slug` | `1vcpu-2gb-50ssd` |
 | `image_slug` | `ubuntu-26.04-x86_64` |
 | `snapshot_name` | `hermes-26-04` |
 
-### Integridade do snapshot
+### Snapshot integrity
 
-O snapshot é tirado do dispositivo de bloco, não do page cache do kernel em
-execução. Sem um `sync` explícito, qualquer arquivo escrito no fim do build
-pode entrar na imagem com o tamanho certo mas a cauda preenchida de bytes
-nulos.
+The snapshot is taken from the block device, not from the page cache of the
+running kernel. Without an explicit `sync`, any file written at the end of the
+build can land in the image with the right size but a tail full of null bytes.
 
-Isso não é hipotético: o primeiro build desta imagem perdeu o final do
-`/etc/ssh/sshd_config` exatamente assim, porque os únicos `sync` do
-[900-cleanup.sh](./scripts/900-cleanup.sh) estavam dentro do ramo de fallback
-do zerofill — e, com o `fstrim` bem-sucedido, nunca eram executados. O script
-agora faz `sync` antes do `fstrim` e novamente no final.
+This is not hypothetical: the first build of this image lost the end of
+`/etc/ssh/sshd_config` in exactly this way, because the only `sync` calls in
+[900-cleanup.sh](./scripts/900-cleanup.sh) were inside the zerofill fallback
+branch and, with `fstrim` succeeding, were never reached. The script now runs
+`sync` before `fstrim` and again at the end.
 
-## Como usar após o deploy
+## How to use after deployment
 
-Conecte via SSH como `root`. O assistente `hermes setup --portal` abre
-automaticamente; ao final, inicie o agente:
-
-```bash
-hermes                  # inicia o agente
-```
-
-Se o assistente foi pulado, execute manualmente:
+Connect over SSH as `root`. The `hermes setup --portal` wizard opens
+automatically; once it finishes, start the agent:
 
 ```bash
-hermes setup --portal   # assistente guiado pelo portal
+hermes                  # start the agent
 ```
 
-Configuração manual:
+If the wizard was skipped, run it manually:
 
 ```bash
-hermes model           # provedor de LLM e modelo
-hermes tools           # ferramentas habilitadas
-hermes gateway setup    # plataformas de mensageria
-hermes setup            # assistente completo
+hermes setup --portal   # portal-guided wizard
 ```
 
-Diagnóstico:
+Manual configuration:
+
+```bash
+hermes model           # LLM provider and model
+hermes tools           # enabled tools
+hermes gateway setup    # messaging platforms
+hermes setup            # full wizard
+```
+
+Diagnostics:
 
 ```bash
 hermes doctor
 ```
 
-As etapas interativas (`setup`, `gateway`) são puladas durante o build porque
-exigem terminal — é exatamente por isso que o `hermes setup --portal` é
-disparado no primeiro login.
+The interactive steps (`setup`, `gateway`) are skipped during the build because
+they require a terminal, which is exactly why `hermes setup --portal` is
+triggered on the first login.
 
-## Requisitos mínimos
+## Minimum requirements
 
-O plano usado no build é `1vcpu-2gb-50ssd`. O agente baixa um runtime Python
-próprio e dependências Node.js, então 2 GB de RAM é o mínimo recomendado;
-suba para `2vcpu-4gb-80ssd` se pretende usar o gateway e modelos locais.
+The plan used for the build is `1vcpu-2gb-50ssd`. The agent downloads its own
+Python runtime and Node.js dependencies, so 2 GB of RAM is the recommended
+minimum; move up to `2vcpu-4gb-80ssd` if you plan to use the gateway and local
+models.
 
 ## Links
 
-- [Documentação de instalação](https://hermes-agent.nousresearch.com/docs/getting-started/installation)
-- [Site do Hermes Agent](https://hermes-agent.nousresearch.com)
+- [Installation documentation](https://hermes-agent.nousresearch.com/docs/getting-started/installation)
+- [Hermes Agent website](https://hermes-agent.nousresearch.com)
